@@ -12,6 +12,20 @@ refuses to call one even if the endpoint offers it.
                  ◀──── verdict ───       ◀── balances, positions, marks
 ```
 
+**Live:** https://lyp-production.up.railway.app · [`/health`](https://lyp-production.up.railway.app/health)
+
+Running against fixture state, not a live exchange account — the Agent OS endpoint is
+not wired yet (see [Connecting to Agent OS](#connecting-to-agent-os)). `/health` reports
+which mode it is in, so canned data is never mistaken for a real book. The rules engine
+is identical either way.
+
+```bash
+curl -X POST https://lyp-production.up.railway.app/check \
+  -H 'content-type: application/json' \
+  -d '{"action":{"symbol":"ETHUSDT","side":"BUY","quantity":5,"orderType":"MARKET"}}'
+# -> ALLOW_REDUCED, suggestedQuantity 3.333...
+```
+
 ---
 
 ## The gap this fills
@@ -282,13 +296,19 @@ by another — a fixture where three rules fire at once proves nothing about any
 
 ## Deploying
 
-Configured for Railway via [`railway.json`](railway.json) — Nixpacks build, `npm start`,
-health check on `/health`.
+Deployed on Railway at **https://lyp-production.up.railway.app**, built from `master` via
+[`railway.json`](railway.json) — Nixpacks, `npm start`, health check on `/health`. Pushes
+to `master` deploy automatically.
+
+To run your own:
 
 ```bash
 railway up
-railway variables set AGENT_OS_MCP_URL=... AGENT_OS_TOKEN=... GUARDRAIL_PROVIDER=agentos
+railway variables --set AGENT_OS_MCP_URL=... --set AGENT_OS_TOKEN=... --set GUARDRAIL_PROVIDER=agentos
 ```
+
+`GUARDRAIL_PROVIDER` defaults to `fixture`, so a fresh deploy comes up working with no
+configuration at all. Switching it to `agentos` takes effect on the next deploy.
 
 `ANTHROPIC_API_KEY` is optional. Without it, narration is disabled and everything else
 is unchanged.
