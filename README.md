@@ -1,15 +1,15 @@
-# Risk guardrail for Binance Agent OS
+# lyp
 
-A read-only service that sits between a trading agent and the exchange. Give it a
-proposed action and it answers **ALLOW**, **ALLOW_REDUCED**, or **BLOCK**, with every
-limit the action breaches and why each one exists.
+A read-only risk guardrail for Binance Agent OS. It sits between a trading agent and the
+exchange: give it a proposed action and it answers **ALLOW**, **ALLOW_REDUCED**, or
+**BLOCK**, with every limit the action breaches and why each one exists.
 
 It never places a trade. It holds no trade permissions, wires no order tools, and
 refuses to call one even if the endpoint offers it.
 
 ```
-  trading agent  ──check_action──▶  guardrail  ──read-only──▶  Binance Agent OS
-                 ◀──── verdict ───              ◀── balances, positions, marks
+  trading agent  ──check_action──▶  lyp  ──read-only──▶  Binance Agent OS
+                 ◀──── verdict ───       ◀── balances, positions, marks
 ```
 
 ---

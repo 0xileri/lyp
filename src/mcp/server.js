@@ -13,7 +13,7 @@ import { ProposedActionSchema, ThresholdOverridesSchema } from "../schema.js";
  */
 export function buildMcpServer(guardrail) {
   const server = new McpServer(
-    { name: "agent-os-risk-guardrail", version: "0.1.0" },
+    { name: "lyp", version: "0.1.0" },
     {
       instructions: [
         "Risk guardrail for trading agents operating against Binance Agent OS.",

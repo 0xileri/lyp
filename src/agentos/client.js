@@ -94,7 +94,7 @@ export class AgentOsClient {
     });
 
     this.#client = new Client(
-      { name: "agent-os-risk-guardrail", version: "0.1.0" },
+      { name: "lyp", version: "0.1.0" },
       // No tool capabilities are declared: this client consumes tools, and
       // never offers any of its own back to the exchange side.
       { capabilities: {} },
