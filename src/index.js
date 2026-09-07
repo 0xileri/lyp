@@ -5,19 +5,27 @@ import { Guardrail } from "./guardrail.js";
 import { AccountStateService, AgentOsProvider, FixtureProvider } from "./agentos/account.js";
 import { createNarrator } from "./narration.js";
 import { mcpRequestHandler } from "./mcp/server.js";
+import { landingPage } from "./landing.js";
 import { DEMO_ACCOUNT } from "../fixtures/accounts.js";
 
 /**
- * HTTP surfaces: POST /mcp, POST /check, GET /health.
+ * HTTP surfaces: POST /mcp, POST /check, GET /health, and a landing page at /.
  *
  * /check and check_action run the identical code path; the REST route exists so
- * a caller that is not an MCP client can still ask before it trades.
+ * a caller that is not an MCP client can still ask before it trades. The
+ * landing page calls that same /check, so a browser and an agent are exercising
+ * one implementation rather than two that can drift apart.
  */
 
 export function createApp({ guardrail, provider = SERVER.provider } = {}) {
   const app = express();
   app.use(express.json({ limit: "256kb" }));
   app.disable("x-powered-by");
+
+  // A browser hitting the bare URL should learn what this is, not "Cannot GET /".
+  app.get("/", (_req, res) => {
+    res.type("html").send(landingPage({ narrationEnabled: NARRATION.enabled, provider }));
+  });
 
   app.get("/health", (_req, res) => {
     res.json({
