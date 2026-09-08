@@ -70,12 +70,17 @@ export function createApp({ guardrail, provider = SERVER.provider } = {}) {
       // explains it. Re-issue the same initialize as a plain POST so the
       // response is legible: an auth challenge, a wrong path and a protocol
       // mismatch all look identical otherwise.
+      const raw = await rawProbe(client.url, process.env.AGENT_OS_TOKEN);
       res.status(502).json({
         endpoint: client.url,
         authenticated: Boolean(process.env.AGENT_OS_TOKEN),
         elapsedMs: Date.now() - started,
         error: err.message,
-        raw: await rawProbe(client.url, process.env.AGENT_OS_TOKEN),
+        raw,
+        // RFC 9728: a 401 carrying resource_metadata tells a client where to
+        // discover the authorization server. Following it is the defined next
+        // step of the handshake, not a workaround.
+        oauth: await discoverAuth(raw),
       });
     } finally {
       await client.close().catch(() => {});
@@ -214,5 +219,55 @@ async function rawProbe(url, token) {
     };
   } catch (err) {
     return { transportError: err.message };
+  }
+}
+
+/**
+ * Follow the OAuth discovery chain a 401 points at.
+ *
+ * RFC 9728 defines `WWW-Authenticate: Bearer resource_metadata="..."` as the
+ * pointer to a protected-resource document, which in turn names the
+ * authorization servers. Reading those two documents is the specified next step
+ * of the handshake, and it is what tells an operator which consent screen to
+ * visit and which scopes exist to be granted.
+ *
+ * Reads metadata only. Starts no authorization, holds no token.
+ */
+async function discoverAuth(raw) {
+  const header = raw?.wwwAuthenticate;
+  const match = header && /resource_metadata="([^"]+)"/.exec(header);
+  if (!match) return { discovered: false, reason: "no resource_metadata in the challenge" };
+
+  const get = async (url) => {
+    const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+    if (!res.ok) return { url, status: res.status };
+    return { url, status: res.status, body: await res.json() };
+  };
+
+  try {
+    const resource = await get(match[1]);
+    const servers = resource.body?.authorization_servers ?? [];
+    const authServer = servers[0]
+      ? await get(new URL("/.well-known/oauth-authorization-server", servers[0]).href).catch(
+          () => null,
+        )
+      : null;
+
+    return {
+      discovered: true,
+      resourceMetadata: resource,
+      // The fields an operator actually needs to complete consent.
+      summary: {
+        scopesSupported: resource.body?.scopes_supported,
+        authorizationServers: servers,
+        authorizationEndpoint: authServer?.body?.authorization_endpoint,
+        tokenEndpoint: authServer?.body?.token_endpoint,
+        registrationEndpoint: authServer?.body?.registration_endpoint,
+        grantTypes: authServer?.body?.grant_types_supported,
+        codeChallengeMethods: authServer?.body?.code_challenge_methods_supported,
+      },
+    };
+  } catch (err) {
+    return { discovered: false, reason: err.message };
   }
 }
