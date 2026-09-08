@@ -1,7 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { AgentOsClient, ReadOnlyViolationError, isWriteTool, unwrapToolResult, TOOL_NAMES } from "../src/agentos/client.js";
+import {
+  AgentOsClient,
+  ReadOnlyViolationError,
+  isWriteTool,
+  unwrapToolResult,
+  TOOL_NAMES,
+  DEFAULT_AGENT_OS_URL,
+} from "../src/agentos/client.js";
 
 /**
  * Read-only enforcement.
@@ -56,8 +63,16 @@ test("a read tool outside the allowlist is also refused", async () => {
   await assert.rejects(() => client.call("get_something_unexpected"), ReadOnlyViolationError);
 });
 
-test("a missing endpoint is a configuration error, not a silent no-op", () => {
-  assert.throws(() => new AgentOsClient({ url: undefined }), /AGENT_OS_MCP_URL is not set/);
+test("the endpoint defaults to the published Agent OS URL", () => {
+  // Market data on Agent OS is unauthenticated, so a client with no
+  // configuration at all should still point somewhere real rather than refuse
+  // to construct.
+  assert.equal(new AgentOsClient().url, DEFAULT_AGENT_OS_URL);
+  assert.match(DEFAULT_AGENT_OS_URL, /^https:\/\/agent\.binance\.com\//);
+});
+
+test("an explicitly empty endpoint is a configuration error, not a silent no-op", () => {
+  assert.throws(() => new AgentOsClient({ url: "" }), /No Agent OS endpoint/);
 });
 
 test("tool results are unwrapped from structured content or a JSON text block", () => {

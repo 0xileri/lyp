@@ -6,6 +6,7 @@ import { AccountStateService, AgentOsProvider, FixtureProvider } from "./agentos
 import { createNarrator } from "./narration.js";
 import { mcpRequestHandler } from "./mcp/server.js";
 import { landingPage } from "./landing.js";
+import { AgentOsClient } from "./agentos/client.js";
 import { DEMO_ACCOUNT } from "../fixtures/accounts.js";
 
 /**
@@ -37,6 +38,43 @@ export function createApp({ guardrail, provider = SERVER.provider } = {}) {
       exchangeScope: "read-only",
       uptimeSeconds: Math.round(process.uptime()),
     });
+  });
+
+  /**
+   * What the Agent OS endpoint actually exposes, and which of those tools this
+   * service will call.
+   *
+   * Read-only in the strictest sense: it lists tool names and invokes none of
+   * them. It exists because the tool names this service wires were inferred
+   * rather than read from the docs, and this is the honest way to check them
+   * against the real endpoint — including from a deployment whose network can
+   * reach Binance when a laptop cannot.
+   */
+  app.get("/agentos", async (_req, res) => {
+    const client = new AgentOsClient({
+      url: process.env.AGENT_OS_MCP_URL,
+      token: process.env.AGENT_OS_TOKEN,
+    });
+    const started = Date.now();
+    try {
+      const audit = await withTimeout(client.auditTools(), 15_000);
+      res.json({
+        endpoint: client.url,
+        authenticated: Boolean(process.env.AGENT_OS_TOKEN),
+        elapsedMs: Date.now() - started,
+        ...audit,
+        missing: audit.wired.filter((n) => !audit.readable.includes(n)),
+      });
+    } catch (err) {
+      res.status(502).json({
+        endpoint: client.url,
+        authenticated: Boolean(process.env.AGENT_OS_TOKEN),
+        elapsedMs: Date.now() - started,
+        error: err.message,
+      });
+    } finally {
+      await client.close().catch(() => {});
+    }
   });
 
   app.post("/check", async (req, res) => {
@@ -119,4 +157,14 @@ if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith
     console.log(`  narration: ${NARRATION.enabled ? NARRATION.model : "disabled"}`);
     console.log(`  scope:     read-only; this service cannot place trades`);
   });
+}
+
+/** Reject after `ms` so a hung upstream cannot hold a request open. */
+function withTimeout(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`timed out after ${ms}ms`)), ms).unref?.(),
+    ),
+  ]);
 }

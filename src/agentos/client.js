@@ -16,17 +16,22 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
  * cannot itself become the thing that places the trade.
  */
 
+/**
+ * The published Agent OS MCP endpoint, over streamable HTTP.
+ *
+ * Market data is served without authentication; account-scoped reads require a
+ * token issued for an Agentic subaccount, which is what AGENT_OS_TOKEN carries.
+ * That split is why this service can do useful, real work against Agent OS
+ * before any credential exists: prices are live even when balances are not.
+ */
+export const DEFAULT_AGENT_OS_URL = "https://agent.binance.com/mcp/agentic";
+
 // ---------------------------------------------------------------------------
-// TODO(agent-os): the two values below, plus the four tool names, are the only
-// unknowns in this file. They come from https://binance.com/agent-os, which
-// was not reachable from the build environment. Everything else -- transport,
-// auth, session lifecycle, read-only gating, response normalisation -- is
-// implemented and exercised by the fixture provider.
-//
-// To wire the live connection:
-//   1. set AGENT_OS_MCP_URL and AGENT_OS_TOKEN in .env
-//   2. run `npm run audit:tools` to print the tool names the endpoint exposes
-//   3. map them onto the four entries below (env vars, no code change needed)
+// TODO(agent-os): the four tool names below are inferred, not confirmed. The
+// Binance domains are unreachable from the build environment, so they could
+// not be read from the docs. `GET /agentos` on a deployed instance reports what
+// the endpoint actually exposes; map the real names onto the AGENT_OS_TOOL_*
+// variables and no code changes are needed.
 // ---------------------------------------------------------------------------
 
 export const TOOL_NAMES = {
@@ -72,10 +77,10 @@ export class AgentOsClient {
   #transport = null;
   #allowed;
 
-  constructor({ url, token, allowedTools = Object.values(TOOL_NAMES) } = {}) {
+  constructor({ url = DEFAULT_AGENT_OS_URL, token, allowedTools = Object.values(TOOL_NAMES) } = {}) {
     if (!url) {
       throw new Error(
-        "AGENT_OS_MCP_URL is not set. Set it in .env, or run with " +
+        "No Agent OS endpoint. Set AGENT_OS_MCP_URL, or run with " +
           "GUARDRAIL_PROVIDER=fixture to exercise the engine without a live connection.",
       );
     }
