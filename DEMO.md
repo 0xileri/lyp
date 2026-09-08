@@ -64,6 +64,8 @@ You have two ways to film it. **Pick one before you start recording.**
 npm.cmd run agent:dry
 ```
 
+> If you see `ENOENT ... package.json`, you are in the wrong folder. Run the `cd` above first — every new terminal starts in your home directory.
+
 Four proposals, four verdicts — ALLOW, ALLOW_REDUCED, and two different BLOCKs — in one
 clean pass, every time. No API key, nothing to re-roll.
 
