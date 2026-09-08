@@ -199,10 +199,31 @@ command, and `.agents/` is gitignored.
 The action-capable skills are deliberately not installed here. Skills Hub ships wallet,
 payment, P2P, fiat and spot-trading skills that can move funds or place orders, and they
 load into an agent's context with full permissions. A repository whose central claim is
-that it *cannot place a trade* has no business also carrying a `send.py`. Only the eight
-read-only research skills are kept: `query-token-audit`, `query-token-info`,
-`query-address-info`, `crypto-market-rank`, `binance-trading-signal`, `trading-signal`,
-`binance-wallet-tracker`, `binance-leaderboard`.
+that it *cannot place a trade* has no business also carrying a `send.py`.
+
+Six skills are kept, all of them query-only:
+
+| Skill | Why it earns a place |
+|---|---|
+| `query-token-audit` | Scam, honeypot and malicious-contract detection. The other half of the question this project asks — *is this token safe* alongside *is this position sized safely*. |
+| `query-token-info` | Price, metadata, holders, liquidity, candles. |
+| `query-address-info` | Holdings snapshot for a given wallet. |
+| `crypto-market-rank` | Ranked market feeds: hype, inflows, trending. |
+| `trading-signal` | Discrete smart-money buy/sell events. |
+| `academy-skill` | Risk education. Its stated triggers include leverage, borrowing to trade and "20x long" — the same territory the liquidation rule refuses. |
+
+**A correction worth recording.** An earlier version of this file claimed eight read-only
+skills, and that was wrong. Three of them — `binance-trading-signal`, `binance-wallet-tracker`
+and `binance-leaderboard` — create, update and delete signal strategies, watchlist groups
+and saved presets. None can trade or move funds, so they were never dangerous, but they
+were not read-only either, and the claim was false. They are removed.
+
+What is asserted now was checked rather than assumed: every endpoint the six call is a
+`/public/` query path. One caveat that survives the check — `query-token-info` fetches
+candles from `dquery.sintral.io`, a third-party host rather than a Binance one.
+
+The point of the correction is not the skills. It is that a project whose value rests on
+being precise about capability does not get to be loose about its own.
 
 ---
 

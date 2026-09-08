@@ -1,23 +1,11 @@
 {
   "version": 1,
   "skills": {
-    "binance-leaderboard": {
+    "academy-skill": {
       "source": "binance/binance-skills-hub",
       "sourceType": "github",
-      "skillPath": "skills/binance-web3/binance-leaderboard/SKILL.md",
-      "computedHash": "8fe7ecea58da92174b758e4d262ba7f2f54355791431c853b80d4a40a279bf48"
-    },
-    "binance-trading-signal": {
-      "source": "binance/binance-skills-hub",
-      "sourceType": "github",
-      "skillPath": "skills/binance-web3/binance-trading-signal/SKILL.md",
-      "computedHash": "d693a90e8d5783f55a992fdb1542d6f495f799660633008033552a2ad946cbad"
-    },
-    "binance-wallet-tracker": {
-      "source": "binance/binance-skills-hub",
-      "sourceType": "github",
-      "skillPath": "skills/binance-web3/binance-wallet-tracker/SKILL.md",
-      "computedHash": "4149d2774737da5450c5b656b8de3f8d421830ce966d6e1fb5c52ea4bc34e8d4"
+      "skillPath": "skills/binance/academy-skill/SKILL.md",
+      "computedHash": "02f76600f8d176b28597702cedae570c1138f0051df0c7b8f1ac40e66f3e7b9c"
     },
     "crypto-market-rank": {
       "source": "binance/binance-skills-hub",
