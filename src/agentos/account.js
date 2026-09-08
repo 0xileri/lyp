@@ -1,5 +1,6 @@
 import { CACHE_TTL } from "../config.js";
 import { AgentOsClient, TOOL_NAMES } from "./client.js";
+import { tokens } from "./oauth.js";
 
 /**
  * Account state acquisition and caching.
@@ -133,7 +134,7 @@ export function deriveEquity(rawAccount, balances, positions) {
 
 /** Live provider, backed by the Agent OS MCP endpoint. Read-only. */
 export class AgentOsProvider {
-  constructor(client = new AgentOsClient({ url: process.env.AGENT_OS_MCP_URL, token: process.env.AGENT_OS_TOKEN })) {
+  constructor(client = new AgentOsClient({ url: process.env.AGENT_OS_MCP_URL, token: () => tokens.get() })) {
     this.client = client;
   }
 

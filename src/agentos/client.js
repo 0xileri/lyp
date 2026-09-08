@@ -92,9 +92,13 @@ export class AgentOsClient {
   async connect() {
     if (this.#client) return this.#client;
 
+    // `token` may be a function, so a token acquired by the OAuth flow after
+    // this client was constructed is still picked up.
+    const token = typeof this.token === "function" ? this.token() : this.token;
+
     this.#transport = new StreamableHTTPClientTransport(new URL(this.url), {
       requestInit: {
-        headers: this.token ? { Authorization: `Bearer ${this.token}` } : {},
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       },
     });
 

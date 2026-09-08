@@ -7,6 +7,7 @@ import { createNarrator } from "./narration.js";
 import { mcpRequestHandler } from "./mcp/server.js";
 import { landingPage } from "./landing.js";
 import { AgentOsClient } from "./agentos/client.js";
+import { beginAuthorization, completeAuthorization, tokens } from "./agentos/oauth.js";
 import { DEMO_ACCOUNT } from "../fixtures/accounts.js";
 
 /**
@@ -50,17 +51,17 @@ export function createApp({ guardrail, provider = SERVER.provider } = {}) {
    * against the real endpoint — including from a deployment whose network can
    * reach Binance when a laptop cannot.
    */
-  app.get("/agentos", async (_req, res) => {
+  app.get("/agentos", async (req, res) => {
     const client = new AgentOsClient({
       url: process.env.AGENT_OS_MCP_URL,
-      token: process.env.AGENT_OS_TOKEN,
+      token: () => tokens.get(),
     });
     const started = Date.now();
     try {
       const audit = await withTimeout(client.auditTools(), 15_000);
       res.json({
         endpoint: client.url,
-        authenticated: Boolean(process.env.AGENT_OS_TOKEN),
+        token: tokens.status(),
         elapsedMs: Date.now() - started,
         ...audit,
         missing: audit.wired.filter((n) => !audit.readable.includes(n)),
@@ -70,10 +71,11 @@ export function createApp({ guardrail, provider = SERVER.provider } = {}) {
       // explains it. Re-issue the same initialize as a plain POST so the
       // response is legible: an auth challenge, a wrong path and a protocol
       // mismatch all look identical otherwise.
-      const raw = await rawProbe(client.url, process.env.AGENT_OS_TOKEN);
+      const raw = await rawProbe(client.url, tokens.get());
       res.status(502).json({
         endpoint: client.url,
-        authenticated: Boolean(process.env.AGENT_OS_TOKEN),
+        token: tokens.status(),
+        connectUrl: `${req.protocol}://${req.get("host")}/connect`,
         elapsedMs: Date.now() - started,
         error: err.message,
         raw,
@@ -84,6 +86,54 @@ export function createApp({ guardrail, provider = SERVER.provider } = {}) {
       });
     } finally {
       await client.close().catch(() => {});
+    }
+  });
+
+  /**
+   * Start the Agent OS authorization flow.
+   *
+   * Agent OS offers no API-key path and no dynamic client registration, so this
+   * redirect is the only way a token comes into existence. The operator lands
+   * on Binance's consent screen, grants read scopes, and returns to /callback.
+   */
+  app.get("/connect", (req, res) => {
+    try {
+      const { url } = beginAuthorization({
+        clientId: process.env.AGENT_OS_CLIENT_ID,
+        redirectUri: callbackUrl(req),
+      });
+      res.redirect(url);
+    } catch (err) {
+      res.status(503).json({ error: err.message, redirectUri: callbackUrl(req) });
+    }
+  });
+
+  /** Where Binance returns the authorization code. */
+  app.get("/callback", async (req, res) => {
+    const { code, state, error, error_description: description } = req.query;
+    if (error) {
+      return res.status(400).type("html").send(
+        connectResult(false, `Authorization was refused: ${escapeHtml(String(description ?? error))}`),
+      );
+    }
+    if (!code || !state) {
+      return res.status(400).type("html").send(connectResult(false, "Missing code or state."));
+    }
+    try {
+      const granted = await completeAuthorization({
+        code: String(code),
+        state: String(state),
+        clientId: process.env.AGENT_OS_CLIENT_ID,
+      });
+      tokens.set(granted);
+      // Cached fixture/live state is now the wrong shape of truth; drop it so
+      // the next verdict reads from the account that was just authorized.
+      guardrail.stateService.invalidate?.();
+      res.type("html").send(
+        connectResult(true, `Scopes granted: ${escapeHtml(granted.scope ?? "(not reported)")}.`),
+      );
+    } catch (err) {
+      res.status(502).type("html").send(connectResult(false, escapeHtml(err.message)));
     }
   });
 
@@ -270,4 +320,43 @@ async function discoverAuth(raw) {
   } catch (err) {
     return { discovered: false, reason: err.message };
   }
+}
+
+/**
+ * The callback URL this deployment is reachable at.
+ *
+ * Derived from the forwarded host so the value registered with Binance matches
+ * whatever domain actually served the request — Railway's generated domain has
+ * already changed once during this project's life.
+ */
+function callbackUrl(req) {
+  const proto = req.get("x-forwarded-proto") ?? req.protocol;
+  return `${proto}://${req.get("host")}/callback`;
+}
+
+const escapeHtml = (s) =>
+  String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+
+/** A plain result page for the end of the OAuth round trip. */
+function connectResult(ok, detail) {
+  return `<!doctype html><meta charset="utf-8"><title>${ok ? "Connected" : "Not connected"} — lyp</title>
+<style>
+ body{margin:0;background:#0a0a0c;color:#ecebe8;font:15px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+      display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px}
+ .c{max-width:520px;border:1px solid #22222b;background:#131318;border-radius:14px;padding:32px}
+ h1{margin:0 0 12px;font-size:22px;letter-spacing:-0.02em;color:${ok ? "#4ade80" : "#f87171"}}
+ p{margin:0 0 14px;color:#9d9b95}
+ code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;color:#7dd3a0}
+ a{color:#ecebe8}
+</style>
+<div class="c">
+  <h1>${ok ? "Connected to Agent OS" : "Not connected"}</h1>
+  <p>${detail}</p>
+  <p>${
+    ok
+      ? 'Account reads will now use the authorized subaccount. Check <code>/agentos</code> for the tools it exposes, then set <code>GUARDRAIL_PROVIDER=agentos</code> to switch verdicts off fixture state.'
+      : 'Nothing was stored. <code>/agentos</code> reports the current handshake state.'
+  }</p>
+  <p><a href="/">← back to lyp</a></p>
+</div>`;
 }
