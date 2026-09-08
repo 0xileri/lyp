@@ -487,8 +487,18 @@ export function landingPage({ narrationEnabled, provider }) {
   .tab.on { background: var(--bg-card); color: var(--fg); border-color: var(--accent); }
   pre.snip { background: var(--bg-inset); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px;
              overflow-x: auto; margin-top: 14px; font-family: var(--mono); font-size: 12.5px; line-height: 1.75;
-             color: var(--fg-dim); }
+             color: var(--fg-dim); position: relative; }
   pre.snip .c { color: var(--fg-faint); } pre.snip .k { color: var(--accent); }
+
+  /* Copy buttons are added by script, so a snippet is still readable and
+     selectable if the script never runs. */
+  .copy { position: absolute; top: 10px; right: 10px; font-family: var(--sans); font-size: 11.5px;
+          padding: 5px 11px; border-radius: 7px; cursor: pointer; border: 1px solid var(--line);
+          background: var(--bg-card); color: var(--fg-dim); transition: all .16s; opacity: 0; }
+  pre.snip:hover .copy, .copy:focus-visible { opacity: 1; }
+  .copy:hover { color: var(--fg); border-color: #3b3b48; }
+  .copy.done { color: var(--allow); border-color: rgba(74,222,128,.4); opacity: 1; }
+  @media (hover: none) { .copy { opacity: 1; } }
 
   /* ---------------------------------------------------------------- misc */
   .never { display: grid; grid-template-columns: repeat(auto-fit, minmax(268px,1fr)); gap: 14px; margin-top: 36px; }
@@ -750,7 +760,8 @@ export function landingPage({ narrationEnabled, provider }) {
       <button class="tab on" data-tab="cc">Claude Code</button>
       <button class="tab" data-tab="json">.mcp.json</button>
       <button class="tab" data-tab="rest">REST</button>
-      <button class="tab" data-tab="agent">Run the agent</button>
+      <button class="tab" data-tab="agent">Run it</button>
+      <button class="tab" data-tab="win">Windows</button>
     </div>
 
 <pre class="snip" data-panel="cc">claude mcp add --transport http lyp https://lyp.up.railway.app/mcp
@@ -769,9 +780,21 @@ curl -X POST https://lyp.up.railway.app<span class="k">/check</span> \\
   -d <span class="k">'{"action":{"symbol":"ETHUSDT","side":"BUY","quantity":5,"orderType":"MARKET"},
        "thresholds":{"positionSize":{"soft":0.05}}}'</span></pre>
 
-<pre class="snip" data-panel="agent" hidden>npm run agent:dry     <span class="c"># the full loop, no API key needed</span>
+<pre class="snip" data-panel="agent" hidden>git clone https://github.com/0xileri/lyp &amp;&amp; cd lyp &amp;&amp; npm install
+
+npm run agent:dry     <span class="c"># the full agent loop, no API key needed</span>
+npm test              <span class="c"># 92 tests, no network, no API key</span>
 npm run demo:approval <span class="c"># mint one approval, spend it four ways</span>
-npm run agent <span class="k">"Open an ETH position worth about 15% of equity."</span></pre>
+curl -s https://lyp.up.railway.app/agentos
+
+npm run agent <span class="k">"Open an ETH position worth about 15% of equity."</span>  <span class="c"># needs ANTHROPIC_API_KEY</span></pre>
+
+<pre class="snip" data-panel="win" hidden><span class="c"># PowerShell: npm resolves to npm.ps1, which the default execution</span>
+<span class="c"># policy blocks, and curl is an alias for Invoke-WebRequest.</span>
+npm.cmd run agent:dry
+npm.cmd test
+npm.cmd run demo:approval
+curl.exe -s https://lyp.up.railway.app/agentos</pre>
 
     <div class="tools">
       ${TOOLS.map(
@@ -957,6 +980,50 @@ npm run agent <span class="k">"Open an ETH position worth about 15% of equity."<
   }
 
   buttons.forEach((b) => b.addEventListener("click", () => run(b)));
+
+  // Copy buttons.
+  //
+  // Added here rather than in the markup so that a snippet is still perfectly
+  // readable and selectable if this script never runs. The button itself is
+  // excluded from the copied text, and comment lines are kept — they are
+  // shell comments and harmless when pasted.
+  for (const pre of document.querySelectorAll("pre.snip")) {
+    const btn = document.createElement("button");
+    btn.className = "copy";
+    btn.type = "button";
+    btn.textContent = "copy";
+    btn.setAttribute("aria-label", "Copy to clipboard");
+
+    btn.addEventListener("click", async () => {
+      const text = [...pre.childNodes]
+        .filter((n) => n !== btn)
+        .map((n) => n.textContent)
+        .join("")
+        .trim();
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch {
+        // Clipboard API needs a secure context and can be refused outright.
+        // Selecting the text is a worse experience but always available.
+        const range = document.createRange();
+        range.selectNodeContents(pre);
+        const sel = getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+        btn.textContent = "select + copy";
+        setTimeout(() => (btn.textContent = "copy"), 2400);
+        return;
+      }
+      btn.textContent = "copied";
+      btn.classList.add("done");
+      setTimeout(() => {
+        btn.textContent = "copy";
+        btn.classList.remove("done");
+      }, 1600);
+    });
+
+    pre.appendChild(btn);
+  }
 
   // Connect tabs
   document.querySelectorAll(".tab").forEach((tab) => {
