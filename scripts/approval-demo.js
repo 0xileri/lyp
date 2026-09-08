@@ -24,13 +24,36 @@ const RED = esc("[31m");
 const YELLOW = esc("[33m");
 const RESET = esc("[0m");
 
-async function post(path, body) {
-  const res = await fetch(BASE + path, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  return { status: res.status, body: await res.json() };
+/**
+ * POST with a couple of retries.
+ *
+ * A single dropped connection should not end the demo. `/check` can take a few
+ * seconds when narration is enabled, which widens the window for a transient
+ * failure, and "fetch failed" on its own tells the reader nothing about whether
+ * the service is down, the network blipped, or the request was wrong.
+ */
+async function post(path, body, attempt = 1) {
+  const MAX = 3;
+  try {
+    const res = await fetch(BASE + path, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(20_000),
+    });
+    return { status: res.status, body: await res.json() };
+  } catch (err) {
+    if (attempt >= MAX) {
+      const cause = err.cause?.code ?? err.name ?? "unknown";
+      throw new Error(
+        `could not reach ${BASE}${path} after ${MAX} attempts (${cause}). ` +
+          `Check the service is up: curl.exe -s ${BASE}/health`,
+      );
+    }
+    process.stdout.write(`${DIM}  retrying (${attempt}/${MAX - 1})…${RESET}\n`);
+    await new Promise((r) => setTimeout(r, 700 * attempt));
+    return post(path, body, attempt + 1);
+  }
 }
 
 const order = (over = {}) => ({

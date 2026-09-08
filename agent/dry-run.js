@@ -119,6 +119,19 @@ const fmt = (n) =>
 const trim = (n) => Number(Number(n).toFixed(4));
 
 main().catch((err) => {
-  console.error(`dry run failed: ${err.message}`);
+  // A bare "fetch failed" tells the reader nothing about whether the service is
+  // down, the network blipped, or something else broke.
+  const cause = err.cause?.code ?? err.cause?.message ?? "";
+  const network = /fetch failed|ENOTFOUND|ECONNREFUSED|ETIMEDOUT|ECONNRESET/.test(
+    err.message + cause,
+  );
+  console.error(`\ndry run failed: ${err.message}${cause ? ` (${cause})` : ""}`);
+  if (network) {
+    console.error(
+      `\nThat looks like a connection problem rather than a rejected request.` +
+        `\nCheck the guardrail is reachable, then run it again:` +
+        `\n  curl.exe -s ${process.env.LYP_MCP_URL ?? DEFAULT_GUARDRAIL_URL.replace("/mcp", "/health")}`,
+    );
+  }
   process.exit(1);
 });
