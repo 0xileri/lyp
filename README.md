@@ -20,11 +20,14 @@ to buy and when is decided by a model running in whatever AI app you chose, off-
 and invisible to the exchange. Permissions cap the blast radius; nothing checks the
 judgment. lyp is that check.
 
-**Account state is fixture data.** The Agent OS hop is drawn dashed above because it is
-dashed in reality: the endpoint is wired and reachable, but it answers `401` pending an
-OAuth token (see [Connecting to Agent OS](#connecting-to-agent-os)). `/health` and
-`/agentos` both report this, so canned data is never mistaken for a live book. The rules
-engine is identical either way.
+**Built against the real gateway; this deployment is not yet holding a token.** The tool
+names, response shapes and error codes are confirmed from an authorized Agent OS session,
+not inferred — which is how three defects were found and fixed before they could reach
+production (see [The tools it calls](#the-tools-it-calls)). What is missing is an OAuth
+`client_id` for *this deployment*, which Binance issues out of band, so the hop is drawn
+dashed above because it is dashed in reality. `/health` and `/agentos` both report the
+live handshake, so canned data is never mistaken for a live book. The rules engine is
+identical either way.
 
 ```bash
 curl -X POST https://lyp.up.railway.app/check \

@@ -481,10 +481,14 @@ export function landingPage({ narrationEnabled, provider }) {
         <div class="n-name">lyp</div>
         <div class="n-desc">Deterministic rules engine. Six limits, evaluated in code.</div>
       </div>
-      <div class="arrow unwired"><span class="lbl warn">not wired</span><span class="ln"></span><span class="lbl">balances, marks</span></div>
+      <div class="arrow unwired"><span class="lbl warn">awaiting client_id</span><span class="ln"></span><span class="lbl">balances, marks</span></div>
       <div class="node pending">
         <div class="n-name">Binance Agent OS</div>
-        <div class="n-desc">Balances, positions, open orders, mark prices — <b>not yet connected</b>. The endpoint answers <span class="mono">401</span> pending OAuth authorization; account state is fixture data until then.</div>
+        <div class="n-desc"><span class="mono">spot_getAccount</span>, <span class="mono">spot_tickerPrice</span>,
+          <span class="mono">spot_getOpenOrders</span>, <span class="mono">futures_usds_positionInformationV2</span>
+          — wired and verified against the live gateway. <b>This deployment holds no token of its
+          own</b>: Binance issues OAuth client ids out of band, so account state is fixture data
+          until one is registered.</div>
       </div>
     </div>
   </section>
@@ -564,9 +568,15 @@ curl -X POST https://lyp.up.railway.app<span class="k">/check</span> \\
 <footer>
   <div class="shell">
     <div class="foot">
-      <p class="note">Running against fixture state — the Agent OS endpoint is not wired yet, and
-        <span class="mono">/health</span> says so rather than passing canned data off as a live
-        book. The rules engine is identical either way.</p>
+      <p class="note">The Agent OS integration is built against the gateway's real tool names,
+        response shapes and error codes, confirmed in an authorized session — which is how three
+        defects got found and fixed: a mark-price parser that would have failed on the first live
+        request, a batch encoding Binance rejects outright, and a <span class="mono">-2015</span>
+        that a careless integration reads as "no positions". This deployment holds no OAuth token
+        of its own yet, so the book below is fixture data.
+        <span class="mono">/health</span> and <span class="mono">/agentos</span> both report the
+        live handshake rather than passing canned data off as an account. The rules engine is
+        identical either way.</p>
       <a href="https://github.com/0xileri/lyp">github.com/0xileri/lyp ↗</a>
     </div>
   </div>
