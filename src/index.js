@@ -75,7 +75,7 @@ export function createApp({ guardrail, provider = SERVER.provider } = {}) {
       res.status(502).json({
         endpoint: client.url,
         token: tokens.status(),
-        connectUrl: `${req.protocol}://${req.get("host")}/connect`,
+        connectUrl: callbackUrl(req).replace(//callback$/, "/connect"),
         elapsedMs: Date.now() - started,
         error: err.message,
         raw,
