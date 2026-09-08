@@ -90,6 +90,12 @@ export class Guardrail {
     const ageMs = now - account.fetchedAt;
     return {
       accountSnapshot: snapshot,
+      // Every mark the guardrail is using, not only those for held symbols.
+      // A caller deciding whether to *open* a position needs the price of
+      // something it does not own yet, and without this it would have to guess
+      // or go find a second price source that may disagree with the one the
+      // verdict is computed against.
+      markPrices: account.markPrices,
       leverage: snapshot.equity > 0 ? snapshot.totalNotional / snapshot.equity : null,
       positions,
       clusterExposure: Object.fromEntries(

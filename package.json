@@ -13,7 +13,8 @@
     "dev": "node --watch src/index.js",
     "test": "node --test",
     "demo": "node scripts/demo.js",
-    "audit:tools": "node scripts/audit-tools.js"
+    "audit:tools": "node scripts/audit-tools.js",
+    "agent": "node agent/run.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.65.0",

@@ -206,6 +206,57 @@ read-only research skills are kept: `query-token-audit`, `query-token-info`,
 
 ---
 
+## The agent
+
+`lyp` is the guardrail. [`agent/`](agent/) is a trading agent that runs behind it — a
+model that reads the book, forms a view, and proposes trades, where **every proposal is
+checked before it counts**.
+
+```bash
+export ANTHROPIC_API_KEY=...
+npm run agent "Look at the book and propose anything worth doing today."
+```
+
+```
+lyp agent · model claude-sonnet-5
+· guardrail https://lyp.up.railway.app/mcp
+· no order is placed by this program
+
+  → propose_trade(symbol: "ETHUSDT", side: "BUY", quantity: 5, orderType: "MARKET")
+    ALLOW_REDUCED — size 3.3333333333333335
+      [reduce] position_size
+```
+
+### The guarantee is structural, not prompted
+
+The agent is not *asked* to consult the guardrail. It has no tool that can act without
+one. `propose_trade` is the only action-shaped function it can reach, and that function
+calls `check_action` itself before returning — so a `BLOCK` is a refusal produced in code
+the model cannot route around, not an instruction it is trusted to follow.
+
+This distinction is the whole point. An agent merely *told* to respect its risk limits is
+one confident completion away from not respecting them.
+
+`test/agent.test.js` proves it with **no model in the loop**: that the only action tool is
+`propose_trade`, that every proposal reaches the guardrail, that a `BLOCK` yields a
+tradable size of zero, and that `ALLOW_REDUCED` records the reduced size rather than the
+requested one. No API key is needed to run those tests.
+
+### Connecting your own agent
+
+[`.mcp.json`](.mcp.json) wires both servers for any MCP client that reads it — `lyp` and
+Binance Agent OS. Or by hand:
+
+```bash
+claude mcp add --transport http lyp https://lyp.up.railway.app/mcp
+```
+
+Market data comes from Agent OS when `AGENT_OS_MCP_URL` and a token are configured, and
+otherwise from the guardrail's own marks — labelled `guardrail-marks` in the run log, so
+the difference is never invisible.
+
+---
+
 ## Surfaces
 
 ### `POST /mcp` — MCP server

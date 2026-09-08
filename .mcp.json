@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "lyp": {
+      "type": "http",
+      "url": "https://lyp.up.railway.app/mcp"
+    },
+    "binance-agent-os": {
+      "type": "http",
+      "url": "https://agent.binance.com/mcp/agentic"
+    }
+  }
+}
