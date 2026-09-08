@@ -66,11 +66,16 @@ export function createApp({ guardrail, provider = SERVER.provider } = {}) {
         missing: audit.wired.filter((n) => !audit.readable.includes(n)),
       });
     } catch (err) {
+      // The MCP SDK reports a failed handshake without the status code that
+      // explains it. Re-issue the same initialize as a plain POST so the
+      // response is legible: an auth challenge, a wrong path and a protocol
+      // mismatch all look identical otherwise.
       res.status(502).json({
         endpoint: client.url,
         authenticated: Boolean(process.env.AGENT_OS_TOKEN),
         elapsedMs: Date.now() - started,
         error: err.message,
+        raw: await rawProbe(client.url, process.env.AGENT_OS_TOKEN),
       });
     } finally {
       await client.close().catch(() => {});
@@ -167,4 +172,47 @@ function withTimeout(promise, ms) {
       setTimeout(() => reject(new Error(`timed out after ${ms}ms`)), ms).unref?.(),
     ),
   ]);
+}
+
+/**
+ * A plain HTTP POST of the MCP `initialize` handshake, for diagnosis only.
+ *
+ * Reports what the endpoint actually answered — status, content type, and a
+ * short body excerpt — so that "auth required", "wrong path" and "protocol
+ * mismatch" can be told apart. Sends no credentials it was not given, and
+ * calls no tools.
+ */
+async function rawProbe(url, token) {
+  const body = {
+    jsonrpc: "2.0",
+    id: 1,
+    method: "initialize",
+    params: {
+      protocolVersion: "2025-06-18",
+      capabilities: {},
+      clientInfo: { name: "lyp", version: "0.1.0" },
+    },
+  };
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        accept: "application/json, text/event-stream",
+        ...(token ? { authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(12_000),
+    });
+    const text = await res.text();
+    return {
+      status: res.status,
+      statusText: res.statusText,
+      contentType: res.headers.get("content-type"),
+      wwwAuthenticate: res.headers.get("www-authenticate"),
+      bodyExcerpt: text.slice(0, 500),
+    };
+  } catch (err) {
+    return { transportError: err.message };
+  }
 }
