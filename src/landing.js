@@ -783,7 +783,8 @@ npm run agent <span class="k">"Open an ETH position worth about 15% of equity."<
   <section id="agentos" class="rv">
     <div class="eyebrow">Binance Agent OS</div>
     <h2 class="sec">Reported honestly.</h2>
-    <p class="sec-lede">Agent OS publishes one hosted endpoint,
+    <p class="sec-lede"><a href="https://www.binance.com/en/agent-os" style="color:var(--accent)">Binance
+      Agent OS</a> publishes one hosted endpoint,
       <span class="mono">agent.binance.com/mcp/agentic</span>, over MCP streamable HTTP. It is an
       OAuth 2.0 protected resource — discovered from its own 401 challenge rather than assumed.</p>
 
@@ -805,6 +806,28 @@ npm run agent <span class="k">"Open an ETH position worth about 15% of equity."<
       the exchange. Only market-data and account-read scopes are requested; trading scopes are
       never asked for, so the read-only guarantee does not rest on this service behaving well.
       Live state is at <a href="/agentos" class="mono" style="color:var(--accent)">/agentos</a>.</p>
+
+    <h3 style="margin-top:50px;font-size:17px">Skills Hub</h3>
+    <p class="sec-lede" style="margin-top:9px">Agent OS is more than the MCP gateway.
+      <a href="https://github.com/binance/binance-skills-hub" style="color:var(--accent)">Binance
+      Skills Hub</a> pairs with this service — <span class="mono">query-token-audit</span> and
+      <span class="mono">check_action</span> answer the two halves of the same question: is this
+      token safe, and is this position sized safely.</p>
+
+<pre class="snip">npx skills add https://github.com/binance/binance-skills-hub</pre>
+
+    <p class="sec-lede" style="margin-top:20px;font-size:14.5px">Six skills are installed, all of
+      them query-only: <span class="mono">query-token-audit</span>,
+      <span class="mono">query-token-info</span>, <span class="mono">query-address-info</span>,
+      <span class="mono">crypto-market-rank</span>, <span class="mono">trading-signal</span> and
+      <span class="mono">academy-skill</span>.</p>
+
+    <p class="sec-lede" style="margin-top:14px;font-size:14.5px">The action-capable skills are
+      deliberately not installed. Skills Hub also ships wallet, payment, P2P, fiat and spot-trading
+      skills that can move funds or place orders, and they load into an agent's context with full
+      permissions. A repository whose central claim is that it <em>cannot place a trade</em> has no
+      business also carrying a <span class="mono">send.py</span>. Every endpoint the six call was
+      checked to be a <span class="mono">/public/</span> query path.</p>
 
     <h3 style="margin-top:50px;font-size:17px">Repository</h3>
     <div class="tbl-wrap">
@@ -840,10 +863,11 @@ npm run agent <span class="k">"Open an ETH position worth about 15% of equity."<
       </div>
       <div>
         <h4>Ecosystem</h4>
-        <a href="https://github.com/0xileri/lyp">GitHub ↗</a>
-        <a href="https://agent.binance.com/mcp/agentic">Agent OS ↗</a>
-        <a href="https://github.com/binance/binance-skills-hub">Skills Hub ↗</a>
-        <a href="https://modelcontextprotocol.io">MCP ↗</a>
+        <a href="https://www.binance.com/en/agent-os">Binance Agent OS ↗</a>
+        <a href="https://github.com/binance/binance-skills-hub">Binance Skills Hub ↗</a>
+        <a href="https://agent.binance.com/mcp/agentic">MCP endpoint ↗</a>
+        <a href="https://modelcontextprotocol.io">Model Context Protocol ↗</a>
+        <a href="https://github.com/0xileri/lyp">Source on GitHub ↗</a>
       </div>
     </div>
   </div>
