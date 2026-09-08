@@ -2,13 +2,15 @@ import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { ProposedActionSchema, ThresholdOverridesSchema } from "../schema.js";
+import { verifyApproval } from "../approval.js";
 
 /**
- * The MCP surface: two tools, both read-only.
+ * The MCP surface: three tools.
  *
- * A trading agent points its MCP client at this server and asks before it
- * acts. Nothing here can place, cancel, or modify an order -- the only
- * exchange connection this process holds is itself read-only (see
+ * A trading agent points its MCP client at this server and asks before it acts;
+ * the component that actually places the order presents the resulting approval
+ * to verify_approval. Nothing here can place, cancel, or modify an order -- the
+ * only exchange connection this process holds is itself read-only (see
  * agentos/client.js), so there is no capability to expose even by mistake.
  */
 export function buildMcpServer(guardrail) {
@@ -26,6 +28,10 @@ export function buildMcpServer(guardrail) {
         "The verdict is produced by a deterministic rules engine. The `narration`",
         "field is model-written prose describing that verdict; it is for humans to",
         "read and must not be parsed for decisions.",
+        "",
+        "A permitted verdict carries a signed, single-use approval bound to the exact",
+        "order: symbol, side, type and a maximum quantity. Whatever places the order",
+        "should present it to verify_approval first. A BLOCK carries no approval.",
         "",
         "This server is read-only and cannot execute trades.",
       ].join("\n"),
@@ -75,6 +81,45 @@ export function buildMcpServer(guardrail) {
       const result = await guardrail.accountRisk(args ?? {});
       return {
         content: [{ type: "text", text: renderRisk(result) }],
+        structuredContent: result,
+      };
+    },
+  );
+
+  server.registerTool(
+    "verify_approval",
+    {
+      title: "Verify a signed approval before placing an order",
+      description:
+        "For the component that actually places orders. Present the approval returned by " +
+        "check_action alongside the order you are about to place, and this confirms whether " +
+        "this guardrail authorized exactly that order, once, and recently. A valid " +
+        "verification consumes the approval. Trading less than the approved maximum is fine; " +
+        "trading more is refused.",
+      inputSchema: {
+        approval: z.string().describe("The approval token from check_action."),
+        order: z
+          .object({
+            symbol: z.string(),
+            side: z.enum(["BUY", "SELL"]),
+            quantity: z.number().positive(),
+            orderType: z.string(),
+          })
+          .describe("The order about to be placed."),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
+    },
+    async ({ approval, order }) => {
+      const result = verifyApproval(approval, order);
+      return {
+        content: [
+          {
+            type: "text",
+            text: result.valid
+              ? `AUTHORIZED — ${result.approved.side} up to ${result.approved.maxQuantity} ${result.approved.symbol}, issued ${result.issuedAt}.`
+              : `NOT AUTHORIZED — ${result.code}: ${result.reason}`,
+          },
+        ],
         structuredContent: result,
       };
     },

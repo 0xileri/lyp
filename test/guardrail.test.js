@@ -48,9 +48,20 @@ test("when the model throws, the verdict is unchanged and narration is null", as
   const withoutModel = await buildGuardrail().check({ action: cleanAction }, NOW);
 
   assert.equal(withModel.narration, null);
+
+  // `approval` is excluded because two checks legitimately mint two different
+  // approvals -- each carries its own id and expiry, which is precisely what
+  // makes them single-use. What must match is the terms they commit to, so
+  // those are compared separately below rather than skipped.
+  const { approval: withApproval, ...withModelRest } = withModel;
+  const { approval: withoutApproval, ...withoutModelRest } = withoutModel;
+
+  assert.deepEqual(withApproval.binds, withoutApproval.binds, "the approved terms are identical");
+  assert.notEqual(withApproval.token, withoutApproval.token, "each approval is distinct");
+
   assert.deepEqual(
-    { ...withModel, narration: null },
-    { ...withoutModel, narration: null },
+    { ...withModelRest, narration: null },
+    { ...withoutModelRest, narration: null },
     "a model failure must not perturb any other field",
   );
 });

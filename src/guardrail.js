@@ -3,6 +3,7 @@ import { ActivityLog } from "./activity.js";
 import { evaluate } from "./engine/rules.js";
 import { clusterOf } from "./engine/clusters.js";
 import { assertValidResponse } from "./schema.js";
+import { mintApproval } from "./approval.js";
 
 /**
  * Orchestration: fetch state, run the deterministic engine, attach optional
@@ -49,6 +50,15 @@ export class Guardrail {
       suggestedQuantity: decision.suggestedQuantity,
       violations: decision.violations,
       accountSnapshot: snapshotOf(account),
+      // Minted only for a permitted verdict, and bound to the size actually
+      // permitted rather than the size requested. A BLOCK carries no approval:
+      // the absence of a token is the refusal.
+      approval: mintApproval({
+        action: req.action,
+        verdict: decision.verdict,
+        suggestedQuantity: decision.suggestedQuantity,
+        now,
+      }),
       narration: null,
     };
 

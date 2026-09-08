@@ -1,12 +1,13 @@
 import express from "express";
 import { SERVER, NARRATION } from "./config.js";
-import { CheckRequestSchema } from "./schema.js";
+import { CheckRequestSchema, VerifyRequestSchema } from "./schema.js";
 import { Guardrail } from "./guardrail.js";
 import { AccountStateService, AgentOsProvider, FixtureProvider } from "./agentos/account.js";
 import { createNarrator } from "./narration.js";
 import { mcpRequestHandler } from "./mcp/server.js";
 import { landingPage } from "./landing.js";
 import { AgentOsClient } from "./agentos/client.js";
+import { verifyApproval, keySource } from "./approval.js";
 import { beginAuthorization, completeAuthorization, tokens } from "./agentos/oauth.js";
 import { DEMO_ACCOUNT } from "../fixtures/accounts.js";
 
@@ -37,6 +38,7 @@ export function createApp({ guardrail, provider = SERVER.provider } = {}) {
       // Stated explicitly because it is the property that matters most about
       // this service, and it should be checkable without reading the source.
       exchangeScope: "read-only",
+      approvalSigningKey: keySource,
       uptimeSeconds: Math.round(process.uptime()),
     });
   });
@@ -154,6 +156,30 @@ export function createApp({ guardrail, provider = SERVER.provider } = {}) {
     } catch (err) {
       res.status(503).json(unavailable(err));
     }
+  });
+
+  /**
+   * Verify a signed approval against the order about to be placed.
+   *
+   * For an executor sitting in front of a venue: present the approval and the
+   * order, and get back whether this guardrail authorized exactly that order,
+   * once, and recently. A valid verification consumes the approval.
+   *
+   * 200 means authorized. Anything else means it is not, and the body says
+   * which of the eight rejection codes applies.
+   */
+  app.post("/verify", (req, res) => {
+    const parsed = VerifyRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        valid: false,
+        code: "MALFORMED",
+        reason: "invalid request",
+        details: parsed.error.issues.map((i) => ({ path: i.path.join("."), message: i.message })),
+      });
+    }
+    const result = verifyApproval(parsed.data.approval, parsed.data.order);
+    res.status(result.valid ? 200 : 403).json(result);
   });
 
   app.post("/mcp", mcpRequestHandler(guardrail));

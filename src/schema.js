@@ -59,6 +59,25 @@ export const VerdictResponseSchema = z.object({
   suggestedQuantity: z.number().positive().nullable(),
   violations: z.array(ViolationSchema),
   accountSnapshot: AccountSnapshotSchema,
+  /**
+   * A signed, single-use authorization for the order that was permitted, bound
+   * to symbol, side, type and a maximum quantity. Null on BLOCK, and null for
+   * any verdict that permits nothing tradable.
+   */
+  approval: z
+    .object({
+      token: z.string(),
+      maxQuantity: z.number().positive(),
+      expiresAt: z.string(),
+      binds: z.object({
+        symbol: z.string(),
+        side: z.enum(['BUY', 'SELL']),
+        orderType: z.string(),
+        maxQuantity: z.number().positive(),
+      }),
+    })
+    .nullable(),
+
   /** Model output. Explanatory only — never consulted to reach the verdict. */
   narration: z.string().nullable(),
 });
@@ -77,3 +96,14 @@ export function assertValidResponse(response) {
   }
   return parsed.data;
 }
+
+/** An executor presenting an approval alongside the order it is about to place. */
+export const VerifyRequestSchema = z.object({
+  approval: z.string().min(1),
+  order: z.object({
+    symbol: z.string().min(3).max(30),
+    side: z.enum(["BUY", "SELL"]),
+    quantity: z.number().positive().finite(),
+    orderType: z.string().min(1),
+  }),
+});

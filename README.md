@@ -330,6 +330,65 @@ Reports provider mode, whether narration is on, and `"exchangeScope": "read-only
 
 ---
 
+## Advisory, or verifiable
+
+A verdict on its own is advice. A caller can ask about one ETH, receive `ALLOW`, and
+trade a hundred — and nothing about the answer would contradict them.
+
+So a permitted verdict also mints a **signed, single-use approval**, bound by HMAC to the
+exact order it approved:
+
+```json
+"approval": {
+  "token": "lyp1.eyJ2IjoxLCJzeW0iOiJFVEhVU0RUIi...",
+  "maxQuantity": 3.3333333333333335,
+  "expiresAt": "2026-09-08T04:31:00.000Z",
+  "binds": { "symbol": "ETHUSDT", "side": "BUY", "orderType": "MARKET", "maxQuantity": 3.3333333333333335 }
+}
+```
+
+Whatever places the order presents it first:
+
+```bash
+curl -X POST https://lyp.up.railway.app/verify -H 'content-type: application/json' -d '{
+  "approval": "lyp1....",
+  "order": { "symbol": "ETHUSDT", "side": "BUY", "quantity": 3.3333, "orderType": "MARKET" }
+}'
+```
+
+`200` means this guardrail authorized exactly that order, once, and recently. Anything
+else names which of eight checks failed: `BAD_SIGNATURE`, `EXPIRED`, `ALREADY_USED`,
+`QUANTITY_EXCEEDED`, `SYMBOL_MISMATCH`, `SIDE_MISMATCH`, `TYPE_MISMATCH`, `MALFORMED`.
+
+Three properties are worth naming:
+
+- **An `ALLOW_REDUCED` binds the reduced size.** Ask for 5, get approved for 3.3333, and
+  presenting the original 5 is `QUANTITY_EXCEEDED`. Trading *less* than approved is fine —
+  a partial fill has not exceeded anything.
+- **A `BLOCK` mints nothing.** There is no approval that says no; its absence is the refusal.
+- **A failed verification does not burn the approval.** One fat-fingered field should not
+  force a caller to re-check from scratch.
+
+### What this does not do
+
+It cannot force an executor to check. This service never touches the exchange, so it has
+no chokepoint to stand in — unlike a design where the guardrail *is* the executor.
+
+What it converts is *"the guardrail said yes, trust me"* into *"here is proof the guardrail
+said yes, to this order, at this time, once."* Enforcement still belongs to whoever places
+the order. This makes their obligation checkable rather than assumed, and makes an
+unapproved order visibly unapproved afterwards.
+
+Two honest limitations. The replay store is in memory, so across N replicas an approval
+could in principle be redeemed once per replica; a shared store would fix that and would
+also make the guardrail fail when the store does, which is the wrong trade for a component
+whose job is to keep answering. And without `GUARDRAIL_SIGNING_KEY` set, a per-process
+random key is generated — the feature works out of the box, but tokens do not outlive a
+restart and are not valid on a sibling replica. `/health` reports which case is in effect
+as `approvalSigningKey: configured | ephemeral`.
+
+---
+
 ## The rules
 
 Evaluated in order. Every rule runs — nothing short-circuits — so one response carries

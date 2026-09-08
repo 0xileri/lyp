@@ -119,3 +119,58 @@ test("GET /mcp is refused explicitly rather than 404ing", async () => {
     assert.match((await res.json()).error.message, /stateless/);
   });
 });
+
+test("POST /verify authorizes exactly the order that was approved", async () => {
+  await withServer(async (base) => {
+    const checked = await (
+      await fetch(`${base}/check`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          action: { symbol: "ETHUSDT", side: "BUY", quantity: 2, orderType: "MARKET" },
+        }),
+      })
+    ).json();
+
+    assert.equal(checked.verdict, "ALLOW");
+    assert.ok(checked.approval?.token, "a permitted verdict carries an approval");
+
+    const verify = (order) =>
+      fetch(`${base}/verify`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ approval: checked.approval.token, order }),
+      });
+
+    // Larger than approved: refused, and the approval survives for a correct
+    // attempt afterwards.
+    const tooBig = await verify({ symbol: "ETHUSDT", side: "BUY", quantity: 50, orderType: "MARKET" });
+    assert.equal(tooBig.status, 403);
+    assert.equal((await tooBig.json()).code, "QUANTITY_EXCEEDED");
+
+    const ok = await verify({ symbol: "ETHUSDT", side: "BUY", quantity: 2, orderType: "MARKET" });
+    assert.equal(ok.status, 200);
+    assert.equal((await ok.json()).valid, true);
+
+    // Single-use.
+    const replay = await verify({ symbol: "ETHUSDT", side: "BUY", quantity: 2, orderType: "MARKET" });
+    assert.equal(replay.status, 403);
+    assert.equal((await replay.json()).code, "ALREADY_USED");
+  });
+});
+
+test("a BLOCK carries no approval to present", async () => {
+  await withServer(async (base) => {
+    const res = await fetch(`${base}/check`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        action: { symbol: "ETHUSDT", side: "BUY", quantity: 12, orderType: "MARKET" },
+      }),
+    });
+    const body = await res.json();
+
+    assert.equal(body.verdict, "BLOCK");
+    assert.equal(body.approval, null, "there is no approval that says no");
+  });
+});
