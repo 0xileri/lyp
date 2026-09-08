@@ -75,7 +75,7 @@ export function createApp({ guardrail, provider = SERVER.provider } = {}) {
       res.status(502).json({
         endpoint: client.url,
         token: tokens.status(),
-        connectUrl: callbackUrl(req).replace(//callback$/, "/connect"),
+        connectUrl: connectUrlFor(req),
         elapsedMs: Date.now() - started,
         error: err.message,
         raw,
@@ -359,4 +359,9 @@ function connectResult(ok, detail) {
   }</p>
   <p><a href="/">← back to lyp</a></p>
 </div>`;
+}
+
+/** The /connect URL for this deployment, over the protocol the client used. */
+function connectUrlFor(req) {
+  return callbackUrl(req).slice(0, -"/callback".length) + "/connect";
 }
