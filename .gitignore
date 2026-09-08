@@ -1,3 +1,10 @@
 node_modules/
 .env
 *.log
+
+# Binance Skills Hub, installed via `npx skills add` (see README).
+# Not vendored: it is a reproducible install, and committing 100+ files of
+# third-party markdown would pad the repo without adding anything a reader
+# cannot regenerate in one command.
+.agents/
+.claude/

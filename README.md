@@ -179,6 +179,31 @@ on. Defaulting equity to `0` or a mark price to `1` would produce confident nons
 
 Account state is cached for 15s, market data for 30s.
 
+### Skills Hub
+
+Agent OS is more than the MCP gateway, and the read-only research half of
+[Binance Skills Hub](https://github.com/binance/binance-skills-hub) pairs naturally with
+this service:
+
+```bash
+npx skills add https://github.com/binance/binance-skills-hub
+```
+
+`query-token-audit` and `check_action` answer the two halves of the same question — *is
+this token safe* and *is this position sized safely* — and together they cover more of
+what can go wrong than either does alone.
+
+Installed skills are **not vendored into this repo**. The install is reproducible in one
+command, and `.agents/` is gitignored.
+
+The action-capable skills are deliberately not installed here. Skills Hub ships wallet,
+payment, P2P, fiat and spot-trading skills that can move funds or place orders, and they
+load into an agent's context with full permissions. A repository whose central claim is
+that it *cannot place a trade* has no business also carrying a `send.py`. Only the eight
+read-only research skills are kept: `query-token-audit`, `query-token-info`,
+`query-address-info`, `crypto-market-rank`, `binance-trading-signal`, `trading-signal`,
+`binance-wallet-tracker`, `binance-leaderboard`.
+
 ---
 
 ## Surfaces
