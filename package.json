@@ -15,7 +15,8 @@
     "demo": "node scripts/demo.js",
     "audit:tools": "node scripts/audit-tools.js",
     "agent": "node agent/run.js",
-    "demo:approval": "node scripts/approval-demo.js"
+    "demo:approval": "node scripts/approval-demo.js",
+    "agent:dry": "node agent/dry-run.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.65.0",

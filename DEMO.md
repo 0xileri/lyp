@@ -18,6 +18,7 @@ cd guardrail
 npm install
 npm test                    # expect: 92 pass, 0 fail
 npm run demo:approval       # no key needed, hits the live deployment
+npm run agent:dry           # no key needed, the full agent loop
 
 # PowerShell:  $env:ANTHROPIC_API_KEY="sk-ant-..."
 # Git Bash:    export ANTHROPIC_API_KEY=sk-ant-...
@@ -55,9 +56,27 @@ Scroll slowly past the four failure cards. Don't read them aloud; let them be se
 
 This is the shot. If you only get one thing right, get this one.
 
+You have two ways to film it. **Pick one before you start recording.**
+
+**Option A — deterministic (safer).** Same tool layer, same live guardrail, no model:
+
+```bash
+npm run agent:dry
+```
+
+Four proposals, four verdicts — ALLOW, ALLOW_REDUCED, and two different BLOCKs — in one
+clean pass, every time. No API key, nothing to re-roll.
+
+**Option B — with the model (stronger framing).** Shows genuine agency, but it picks its
+own trades, so you may need takes:
+
 ```bash
 npm run agent "Open an ETH position worth about 15% of equity."
 ```
+
+If you have time for takes, film B. If you're tight, film A and mention the model-driven
+version is one command away — the guardrail behaviour is identical either way, which is
+the entire point.
 
 **Show:** the tool calls scrolling, then `ALLOW_REDUCED` and the decision record.
 
