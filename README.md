@@ -110,8 +110,9 @@ The demo runs entirely on fixtures — no exchange connection, no API keys.
 deployment talks to it; what is missing is an authorization token.
 
 [Binance Agent OS](https://www.binance.com/en/agent-os) publishes one endpoint,
-`https://agent.binance.com/mcp/agentic`, over MCP streamable HTTP. Probing it from the
-deployment returns:
+`https://agent.binance.com/mcp/agentic`, over MCP streamable HTTP —
+[documented here](https://developers.binance.com/en/docs/agent-native/mcp-server/agentic).
+Probing it from the deployment returns:
 
 ```http
 HTTP/1.1 401 Unauthorized

@@ -791,7 +791,8 @@ npm run agent <span class="k">"Open an ETH position worth about 15% of equity."<
     <div class="tbl-wrap">
       <table>
         <tr><th>property</th><th>value</th></tr>
-        <tr class="rule-row"><td class="k">endpoint</td><td class="n">agent.binance.com/mcp/agentic</td></tr>
+        <tr class="rule-row"><td class="k">endpoint</td><td class="n"><a href="https://agent.binance.com/mcp/agentic" style="color:var(--fg-dim)">agent.binance.com/mcp/agentic</a></td></tr>
+        <tr class="rule-row"><td class="k">docs</td><td class="n"><a href="https://developers.binance.com/en/docs/agent-native/mcp-server/agentic" style="color:var(--accent)">developers.binance.com · agent-native/mcp-server ↗</a></td></tr>
         <tr class="rule-row"><td class="k">authorization</td><td class="n">accounts.binance.com/agentic-oauth/authorize</td></tr>
         <tr class="rule-row"><td class="k">token</td><td class="n">accounts.binance.com/oauth-agentic/token</td></tr>
         <tr class="rule-row"><td class="k">grant</td><td class="n">authorization_code + PKCE S256</td></tr>
@@ -864,6 +865,7 @@ npm run agent <span class="k">"Open an ETH position worth about 15% of equity."<
       <div>
         <h4>Ecosystem</h4>
         <a href="https://www.binance.com/en/agent-os">Binance Agent OS ↗</a>
+        <a href="https://developers.binance.com/en/docs/agent-native/mcp-server/agentic">Binance MCP server docs ↗</a>
         <a href="https://github.com/binance/binance-skills-hub">Binance Skills Hub ↗</a>
         <a href="https://agent.binance.com/mcp/agentic">MCP endpoint ↗</a>
         <a href="https://modelcontextprotocol.io">Model Context Protocol ↗</a>
