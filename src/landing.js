@@ -231,6 +231,28 @@ const FAQ = [
   ],
 ];
 
+const escHtml = (s) =>
+  String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+
+/**
+ * A block of shell commands where each line copies on its own.
+ *
+ * Copying a whole block hands you comments and commands you did not want and
+ * makes you edit them back out. One line at a time is what anyone actually
+ * does with a quickstart. Comment and blank lines render as text and are not
+ * clickable, because there is nothing there worth taking.
+ */
+function cmdBlock(lines) {
+  const body = lines
+    .map((line) => {
+      if (line === "") return `<span class="cm">&nbsp;</span>`;
+      if (line.startsWith("#")) return `<span class="cm">${escHtml(line)}</span>`;
+      return `<button class="line" type="button" data-copy="${escHtml(line)}">${escHtml(line)}</button>`;
+    })
+    .join("");
+  return `<div class="snip cmds">${body}</div>`;
+}
+
 export function landingPage({ narrationEnabled, provider }) {
   return `<!doctype html>
 <html lang="en">
@@ -500,6 +522,25 @@ export function landingPage({ narrationEnabled, provider }) {
   .copy.done { color: var(--allow); border-color: rgba(74,222,128,.4); opacity: 1; }
   @media (hover: none) { .copy { opacity: 1; } }
 
+  /* Command blocks: one clickable line per command. */
+  .snip.cmds { background: var(--bg-inset); border: 1px solid var(--line); border-radius: 12px;
+               padding: 11px 12px; margin-top: 14px; font-family: var(--mono); font-size: 12.5px;
+               line-height: 1.7; overflow-x: auto; }
+  .snip.cmds .line { display: block; width: 100%; text-align: left; background: transparent;
+                     border: 0; color: var(--fg-dim); font: inherit; padding: 5px 74px 5px 11px;
+                     border-radius: 7px; cursor: pointer; position: relative; white-space: pre;
+                     transition: background .14s, color .14s; }
+  .snip.cmds .line:hover { background: rgba(255,255,255,.05); color: var(--fg); }
+  .snip.cmds .line:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
+  .snip.cmds .line::after { content: "copy"; position: absolute; right: 11px; top: 50%;
+                            transform: translateY(-50%); font-family: var(--sans); font-size: 10.5px;
+                            color: var(--fg-faint); opacity: 0; transition: opacity .14s; }
+  .snip.cmds .line:hover::after, .snip.cmds .line:focus-visible::after { opacity: 1; }
+  .snip.cmds .line.done { color: var(--allow); background: rgba(74,222,128,.07); }
+  .snip.cmds .line.done::after { content: "copied"; color: var(--allow); opacity: 1; }
+  .snip.cmds .cm { display: block; padding: 5px 11px; color: var(--fg-faint); white-space: pre; }
+  @media (hover: none) { .snip.cmds .line::after { opacity: 1; } }
+
   /* ---------------------------------------------------------------- misc */
   .never { display: grid; grid-template-columns: repeat(auto-fit, minmax(268px,1fr)); gap: 14px; margin-top: 36px; }
   .nv { background: var(--bg-card); border: 1px solid var(--line); border-radius: 12px; padding: 19px 20px;
@@ -764,8 +805,10 @@ export function landingPage({ narrationEnabled, provider }) {
       <button class="tab" data-tab="win">Windows</button>
     </div>
 
-<pre class="snip" data-panel="cc">claude mcp add --transport http lyp https://lyp.up.railway.app/mcp
-<span class="c"># then /mcp and pick lyp</span></pre>
+    <div data-panel="cc">${cmdBlock([
+      "claude mcp add --transport http lyp https://lyp.up.railway.app/mcp",
+      "# then run /mcp and pick lyp",
+    ])}</div>
 
 <pre class="snip" data-panel="json" hidden>{
   <span class="k">"mcpServers"</span>: {
@@ -780,21 +823,32 @@ curl -X POST https://lyp.up.railway.app<span class="k">/check</span> \\
   -d <span class="k">'{"action":{"symbol":"ETHUSDT","side":"BUY","quantity":5,"orderType":"MARKET"},
        "thresholds":{"positionSize":{"soft":0.05}}}'</span></pre>
 
-<pre class="snip" data-panel="agent" hidden>git clone https://github.com/0xileri/lyp &amp;&amp; cd lyp &amp;&amp; npm install
+    <div data-panel="agent" hidden>${cmdBlock([
+      "git clone https://github.com/0xileri/lyp",
+      "cd lyp && npm install",
+      "",
+      "# the full agent loop, no API key needed",
+      "npm run agent:dry",
+      "# 92 tests, no network, no API key",
+      "npm test",
+      "# mint one approval, then spend it four ways",
+      "npm run demo:approval",
+      "# what Agent OS actually answers",
+      "curl -s https://lyp.up.railway.app/agentos",
+      "",
+      "# with a model choosing instead — needs ANTHROPIC_API_KEY",
+      'npm run agent "Open an ETH position worth about 15% of equity."',
+    ])}</div>
 
-npm run agent:dry     <span class="c"># the full agent loop, no API key needed</span>
-npm test              <span class="c"># 92 tests, no network, no API key</span>
-npm run demo:approval <span class="c"># mint one approval, spend it four ways</span>
-curl -s https://lyp.up.railway.app/agentos
-
-npm run agent <span class="k">"Open an ETH position worth about 15% of equity."</span>  <span class="c"># needs ANTHROPIC_API_KEY</span></pre>
-
-<pre class="snip" data-panel="win" hidden><span class="c"># PowerShell: npm resolves to npm.ps1, which the default execution</span>
-<span class="c"># policy blocks, and curl is an alias for Invoke-WebRequest.</span>
-npm.cmd run agent:dry
-npm.cmd test
-npm.cmd run demo:approval
-curl.exe -s https://lyp.up.railway.app/agentos</pre>
+    <div data-panel="win" hidden>${cmdBlock([
+      "# PowerShell: npm resolves to npm.ps1, which the default execution",
+      "# policy blocks, and curl is an alias for Invoke-WebRequest.",
+      "",
+      "npm.cmd run agent:dry",
+      "npm.cmd test",
+      "npm.cmd run demo:approval",
+      "curl.exe -s https://lyp.up.railway.app/agentos",
+    ])}</div>
 
     <div class="tools">
       ${TOOLS.map(
@@ -838,7 +892,7 @@ curl.exe -s https://lyp.up.railway.app/agentos</pre>
       <span class="mono">check_action</span> answer the two halves of the same question: is this
       token safe, and is this position sized safely.</p>
 
-<pre class="snip">npx skills add https://github.com/binance/binance-skills-hub</pre>
+${cmdBlock(["npx skills add https://github.com/binance/binance-skills-hub"])}
 
     <p class="sec-lede" style="margin-top:20px;font-size:14.5px">Six skills are installed, all of
       them query-only: <span class="mono">query-token-audit</span>,
@@ -981,7 +1035,31 @@ curl.exe -s https://lyp.up.railway.app/agentos</pre>
 
   buttons.forEach((b) => b.addEventListener("click", () => run(b)));
 
-  // Copy buttons.
+  // Per-line copy for command blocks.
+  //
+  // Each command is its own button, so you take the one line you want instead
+  // of a block you then have to edit down. Comment and blank lines are plain
+  // text and not clickable — there is nothing there worth taking.
+  document.querySelectorAll(".snip.cmds .line").forEach((line) => {
+    line.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(line.dataset.copy);
+      } catch {
+        // The clipboard API needs a secure context and can be refused. Select
+        // the line instead so the text is still one keystroke away.
+        const range = document.createRange();
+        range.selectNodeContents(line);
+        const sel = getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+        return;
+      }
+      line.classList.add("done");
+      setTimeout(() => line.classList.remove("done"), 1500);
+    });
+  });
+
+  // Whole-block copy, for the snippets that are one thing rather than a list.
   //
   // Added here rather than in the markup so that a snippet is still perfectly
   // readable and selectable if this script never runs. The button itself is
