@@ -138,15 +138,36 @@ railway variables --set AGENT_OS_TOKEN=...
 # 3. Confirm the handshake now succeeds, and read the real tool names.
 curl https://lyp.up.railway.app/agentos
 
-# 4. If the names differ from the inferred defaults, map them — no code change:
-#    AGENT_OS_TOOL_BALANCES / _POSITIONS / _OPEN_ORDERS / _MARK_PRICES
-
-# 5. Switch off fixtures.
+# 4. Switch off fixtures.
 railway variables --set GUARDRAIL_PROVIDER=agentos
 ```
 
-The four tool names are still inferred rather than read from the docs; step 3 is how they
-get checked against reality.
+### The tools it calls
+
+Confirmed against a live authorized gateway session, not inferred — an earlier version of
+this integration guessed four names and got all four wrong:
+
+| Purpose | Tool |
+|---|---|
+| Balances and equity | `spot_getAccount` |
+| Positions | `futures_usds_positionInformationV2` |
+| Open orders | `spot_getOpenOrders` |
+| Mark prices | `spot_tickerPrice` |
+
+Overridable via `AGENT_OS_TOOL_BALANCES` / `_POSITIONS` / `_OPEN_ORDERS` / `_MARK_PRICES`
+if a gateway revision moves them.
+
+Three things that session also established, each of which is now handled rather than
+discovered in production:
+
+- **Mark prices are fetched one symbol at a time.** The gateway accepts a `symbols` array
+  but serializes it with spaces, and Binance rejects the query with `-1100 Illegal
+  characters found in parameter 'symbols'`. The batch form simply does not work.
+- **A spot-only account answers `-2015` for futures positions.** That is recorded as a
+  *degraded source* and blocks, rather than being read as "no positions" — "no permission"
+  and "no exposure" are different facts, and confusing them understates risk.
+- **Binance spells it `unRealizedProfit`** on futures v2 and `unrealizedProfit` elsewhere.
+  Both are accepted.
 
 Response field names are read tolerantly (`positionAmt` or `quantity` or `size`, and so
 on) since the exact shapes were unverified. A field that is genuinely absent becomes

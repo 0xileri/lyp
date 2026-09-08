@@ -398,6 +398,23 @@ export function evaluate({ action, account, thresholds: t, activityCount = 0, no
     });
   }
 
+  // A source that could not be read is not a source that reported nothing.
+  // The gateway answers -2015 for futures on a spot-only account, which looks
+  // identical to a token whose scope is too narrow to see real positions. The
+  // first is harmless and the second understates exposure, so neither is
+  // assumed.
+  for (const source of account.degraded ?? []) {
+    violations.push({
+      rule: "source_unavailable",
+      severity: "block",
+      actual: 0,
+      threshold: 1,
+      explanation:
+        `Could not read ${source.source}: ${source.reason}. Exposure may be understated, ` +
+        `so the action is refused rather than judged against a partial book.`,
+    });
+  }
+
   const activity = ruleActivityRate(t, activityCount);
   if (activity) violations.push(activity.violation);
 

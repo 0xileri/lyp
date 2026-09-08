@@ -26,19 +26,20 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
  */
 export const DEFAULT_AGENT_OS_URL = "https://agent.binance.com/mcp/agentic";
 
-// ---------------------------------------------------------------------------
-// TODO(agent-os): the four tool names below are inferred, not confirmed. The
-// Binance domains are unreachable from the build environment, so they could
-// not be read from the docs. `GET /agentos` on a deployed instance reports what
-// the endpoint actually exposes; map the real names onto the AGENT_OS_TOOL_*
-// variables and no code changes are needed.
-// ---------------------------------------------------------------------------
-
+/**
+ * The four reads this service performs, by their real names on the Agent OS
+ * gateway.
+ *
+ * Confirmed against a live authorized session, not inferred: an earlier version
+ * of this file guessed `get_account_balances` and friends, and every one of
+ * those guesses was wrong. Overridable by environment so a gateway revision
+ * does not require a code change.
+ */
 export const TOOL_NAMES = {
-  balances: process.env.AGENT_OS_TOOL_BALANCES ?? "get_account_balances",
-  positions: process.env.AGENT_OS_TOOL_POSITIONS ?? "get_open_positions",
-  openOrders: process.env.AGENT_OS_TOOL_OPEN_ORDERS ?? "get_open_orders",
-  markPrices: process.env.AGENT_OS_TOOL_MARK_PRICES ?? "get_mark_price",
+  balances: process.env.AGENT_OS_TOOL_BALANCES ?? "spot_getAccount",
+  positions: process.env.AGENT_OS_TOOL_POSITIONS ?? "futures_usds_positionInformationV2",
+  openOrders: process.env.AGENT_OS_TOOL_OPEN_ORDERS ?? "spot_getOpenOrders",
+  markPrices: process.env.AGENT_OS_TOOL_MARK_PRICES ?? "spot_tickerPrice",
 };
 
 /** Substrings that mark a tool as capable of changing exchange state. */

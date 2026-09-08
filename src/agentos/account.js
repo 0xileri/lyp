@@ -5,14 +5,17 @@ import { tokens } from "./oauth.js";
 /**
  * Account state acquisition and caching.
  *
- * The normalisers below are deliberately tolerant about field names. The exact
- * response shapes of the Agent OS tools were not available when this was
- * written (see the TODO in client.js), so each field is read from a list of
- * plausible names and the first present one wins. When a required field is
- * absent entirely the value becomes NaN or undefined rather than a default,
- * which the rules engine then treats as unusable market data and blocks on --
- * the correct failure mode. Silently defaulting equity to 0, or a mark price to
- * 1, would produce confident nonsense.
+ * The normalisers stay tolerant about field names even though the shapes are
+ * now confirmed against a live authorized session, because Binance is not
+ * consistent with itself: futures v2 reports `unRealizedProfit` where other
+ * endpoints use `unrealizedProfit`, and quantity arrives as `positionAmt`,
+ * `qty` or `size` depending on where you ask. Each field is read from a list
+ * and the first present one wins.
+ *
+ * When a required field is absent entirely the value becomes NaN rather than a
+ * default, which the rules engine treats as unusable market data and blocks on.
+ * Silently defaulting equity to 0, or a mark price to 1, would produce
+ * confident nonsense.
  */
 
 const pick = (obj, names, fallback = undefined) => {
@@ -63,7 +66,9 @@ export function normalizePositions(raw) {
         markPrice: num(pick(p, ["markPrice", "marketPrice", "lastPrice", "price"])),
         leverage: num(pick(p, ["leverage", "lev"], 1)),
         liquidationPrice: num(pick(p, ["liquidationPrice", "liqPrice", "estimatedLiquidationPrice"], 0)),
-        unrealizedPnl: num(pick(p, ["unrealizedProfit", "unrealizedPnl", "uPnl"], 0)),
+        // Binance spells it unRealizedProfit on futures v2; the lowercase-r
+        // spelling appears elsewhere. Both are accepted.
+        unrealizedPnl: num(pick(p, ["unRealizedProfit", "unrealizedProfit", "unrealizedPnl", "uPnl"], 0)),
       };
     })
     .filter((p) => p.symbol && p.quantity > 0);
@@ -79,7 +84,15 @@ export function normalizeOpenOrders(raw) {
   }));
 }
 
-/** Accepts either a map of symbol -> price, or an array of {symbol, price}. */
+/**
+ * Accepts the three shapes seen in the wild: an array of tickers, a single
+ * ticker object, or a bare map of symbol to price.
+ *
+ * The single-ticker case is the one `spot_tickerPrice` actually returns when
+ * asked for one symbol — `{"symbol":"ETHUSDT","price":"2496.28"}` — and it has
+ * to be recognised before the map branch, which would otherwise read the
+ * literal keys "symbol" and "price" as if they were ticker names.
+ */
 export function normalizeMarks(raw) {
   const out = {};
   const arr = arrayFrom(raw);
@@ -89,6 +102,12 @@ export function normalizeMarks(raw) {
       const price = num(pick(m, ["markPrice", "price", "indexPrice", "lastPrice"]));
       if (symbol) out[symbol] = price;
     }
+    return out;
+  }
+  if (raw && typeof raw === "object" && raw.symbol !== undefined) {
+    out[String(raw.symbol).toUpperCase()] = num(
+      pick(raw, ["markPrice", "price", "indexPrice", "lastPrice"]),
+    );
     return out;
   }
   if (raw && typeof raw === "object") {
@@ -139,25 +158,66 @@ export class AgentOsProvider {
   }
 
   async fetchAccount() {
-    const [rawBalances, rawPositions, rawOrders] = await Promise.all([
+    const [balancesRes, positionsRes, ordersRes] = await Promise.allSettled([
       this.client.call(TOOL_NAMES.balances),
       this.client.call(TOOL_NAMES.positions),
       this.client.call(TOOL_NAMES.openOrders),
     ]);
+
+    // Balances are load-bearing: without them there is no equity, and every
+    // ratio in the engine divides by it. A failure here is fatal by design.
+    if (balancesRes.status === "rejected") throw balancesRes.reason;
+
+    const rawBalances = balancesRes.value;
     const balances = normalizeBalances(rawBalances);
-    const positions = normalizePositions(rawPositions);
+
+    // Positions and open orders are recorded as degraded rather than defaulted.
+    //
+    // A spot-only account genuinely has no futures positions, and the gateway
+    // answers -2015 for it. But "no permission" and "no positions" are not the
+    // same fact, and quietly reading the first as the second would understate
+    // exposure on an account whose token simply lacks the scope. The engine
+    // turns a degraded source into a refusal; it does not guess.
+    const degraded = [];
+    const positions = positionsRes.status === "fulfilled"
+      ? normalizePositions(positionsRes.value)
+      : (degraded.push({ source: "positions", reason: reasonOf(positionsRes.reason) }), []);
+    const openOrders = ordersRes.status === "fulfilled"
+      ? normalizeOpenOrders(ordersRes.value)
+      : (degraded.push({ source: "openOrders", reason: reasonOf(ordersRes.reason) }), []);
+
     return {
       balances,
       positions,
-      openOrders: normalizeOpenOrders(rawOrders),
+      openOrders,
       equity: deriveEquity(rawBalances, balances, positions),
+      degraded,
       fetchedAt: Date.now(),
     };
   }
 
+  /**
+   * One call per symbol.
+   *
+   * The gateway accepts a `symbols` array, but serializes it with spaces and
+   * Binance then rejects the query with -1100 ("Illegal characters found in
+   * parameter 'symbols'"). Asking per symbol sidesteps the encoding entirely,
+   * and a portfolio has few enough symbols that the extra round trips are
+   * cheaper than a batch that fails outright.
+   *
+   * A symbol that fails is simply absent from the map, which the engine treats
+   * as unusable market data and blocks on.
+   */
   async fetchMarks(symbols) {
-    const raw = await this.client.call(TOOL_NAMES.markPrices, { symbols });
-    return { markPrices: normalizeMarks(raw), fetchedAt: Date.now() };
+    const results = await Promise.allSettled(
+      symbols.map((symbol) => this.client.call(TOOL_NAMES.markPrices, { symbol })),
+    );
+    const markPrices = {};
+    for (const result of results) {
+      if (result.status !== "fulfilled") continue;
+      Object.assign(markPrices, normalizeMarks(result.value));
+    }
+    return { markPrices, fetchedAt: Date.now() };
   }
 }
 
@@ -236,4 +296,10 @@ export class AccountStateService {
   invalidate() {
     this.#cache.clear();
   }
+}
+
+/** A short, loggable reason from a rejected tool call. */
+function reasonOf(err) {
+  const message = err?.message ?? String(err);
+  return message.length > 200 ? `${message.slice(0, 200)}…` : message;
 }
