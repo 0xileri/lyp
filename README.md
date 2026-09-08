@@ -8,19 +8,26 @@ It never places a trade. It holds no trade permissions, wires no order tools, an
 refuses to call one even if the endpoint offers it.
 
 ```
-  trading agent  ──check_action──▶  lyp  ──read-only──▶  Binance Agent OS
-                 ◀──── verdict ───       ◀── balances, positions, marks
+  trading agent  ──check_action──▶  lyp  ╌╌read-only╌▶  Binance Agent OS
+                 ◀──── verdict ───       ◀╌╌ balances, marks   (401: awaiting OAuth)
 ```
 
-**Live:** https://lyp-production.up.railway.app · [`/health`](https://lyp-production.up.railway.app/health)
+**Live:** https://lyp.up.railway.app · [`/health`](https://lyp.up.railway.app/health) · [`/agentos`](https://lyp.up.railway.app/agentos)
 
-Running against fixture state, not a live exchange account — the Agent OS endpoint is
-not wired yet (see [Connecting to Agent OS](#connecting-to-agent-os)). `/health` reports
-which mode it is in, so canned data is never mistaken for a real book. The rules engine
-is identical either way.
+**Why this exists.** Agent OS bounds *what* an agent may touch — you authorize a
+subaccount with the scopes and limits you configure. But inside that boundary, how much
+to buy and when is decided by a model running in whatever AI app you chose, off-platform
+and invisible to the exchange. Permissions cap the blast radius; nothing checks the
+judgment. lyp is that check.
+
+**Account state is fixture data.** The Agent OS hop is drawn dashed above because it is
+dashed in reality: the endpoint is wired and reachable, but it answers `401` pending an
+OAuth token (see [Connecting to Agent OS](#connecting-to-agent-os)). `/health` and
+`/agentos` both report this, so canned data is never mistaken for a live book. The rules
+engine is identical either way.
 
 ```bash
-curl -X POST https://lyp-production.up.railway.app/check \
+curl -X POST https://lyp.up.railway.app/check \
   -H 'content-type: application/json' \
   -d '{"action":{"symbol":"ETHUSDT","side":"BUY","quantity":5,"orderType":"MARKET"}}'
 # -> ALLOW_REDUCED, suggestedQuantity 3.333...
@@ -96,34 +103,50 @@ The demo runs entirely on fixtures — no exchange connection, no API keys.
 
 ## Connecting to Agent OS
 
-**Status: the endpoint and auth details are not filled in.** `binance.com` was not
-reachable from the environment this was built in, so the two values that come from
-[binance.com/agent-os](https://binance.com/agent-os) are marked TODO. Everything
-around them — transport, auth header, session handling, read-only gating, response
-normalisation, caching — is implemented and exercised against fixtures.
+**Status: reachable, authenticated handshake outstanding.** The endpoint is wired and the
+deployment talks to it; what is missing is an authorization token.
+
+The published endpoint is `https://agent.binance.com/mcp/agentic`, over MCP streamable
+HTTP. Probing it from the deployment returns:
+
+```http
+HTTP/1.1 401 Unauthorized
+WWW-Authenticate: Bearer resource_metadata="https://agent.binance.com/.well-known/oauth-protected-resource/gateway-mcp"
+```
+
+So Agent OS is an **OAuth 2.0 protected resource** (RFC 9728, as the MCP authorization
+spec prescribes). Every call needs a bearer token, `initialize` included — there is no
+unauthenticated market-data path. Obtaining one is an interactive consent flow against an
+Agentic subaccount, which is why it is a step the operator performs rather than something
+the build can do for itself.
+
+`GET /agentos` on any deployed instance reports exactly this: the endpoint, whether a
+token is configured, and the raw handshake response. It lists tool names and calls none
+of them.
 
 To go live:
 
 ```bash
-# 1. set the endpoint and token
-cp .env.example .env
-#    AGENT_OS_MCP_URL=...
-#    AGENT_OS_TOKEN=...
+# 1. Create and fund an Agentic subaccount, then authorize an agent at
+#    binance.com/en/agent-os. Grant MARKET DATA and ACCOUNT READ scope only.
+#    Do not grant trade scope: this service does not use it, and the
+#    read-only guard refuses order-shaped tools regardless.
 
-# 2. see what the endpoint exposes
-npm run audit:tools
+# 2. Give the deployment the token.
+railway variables --set AGENT_OS_TOKEN=...
 
-# 3. map the four reads onto the names it printed, if they differ
+# 3. Confirm the handshake now succeeds, and read the real tool names.
+curl https://lyp.up.railway.app/agentos
+
+# 4. If the names differ from the inferred defaults, map them — no code change:
 #    AGENT_OS_TOOL_BALANCES / _POSITIONS / _OPEN_ORDERS / _MARK_PRICES
 
-# 4. switch off fixtures
-#    GUARDRAIL_PROVIDER=agentos
-npm start
+# 5. Switch off fixtures.
+railway variables --set GUARDRAIL_PROVIDER=agentos
 ```
 
-Request **market data and account read scope only**. Do not grant trade permissions —
-the service does not use them, and `audit:tools` will list any it finds under
-"refused as exchange-mutating".
+The four tool names are still inferred rather than read from the docs; step 3 is how they
+get checked against reality.
 
 Response field names are read tolerantly (`positionAmt` or `quantity` or `size`, and so
 on) since the exact shapes were unverified. A field that is genuinely absent becomes
@@ -296,7 +319,7 @@ by another — a fixture where three rules fire at once proves nothing about any
 
 ## Deploying
 
-Deployed on Railway at **https://lyp-production.up.railway.app**, built from `master` via
+Deployed on Railway at **https://lyp.up.railway.app**, built from `master` via
 [`railway.json`](railway.json) — Nixpacks, `npm start`, health check on `/health`. Pushes
 to `master` deploy automatically.
 

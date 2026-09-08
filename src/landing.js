@@ -11,27 +11,56 @@
  * numbers on this page change with it.
  */
 
+/**
+ * Scenarios are chosen so that between them every rule that can fire against
+ * this book does fire. A rules table listing six limits while the demo only
+ * ever exercises three asserts the other half rather than showing it.
+ *
+ * Each note names the limit and the arithmetic, so the verdict that comes back
+ * is checkable against the limits panel rather than taken on trust.
+ */
 const SCENARIOS = [
   {
     id: "clean",
     label: "Reasonable",
     sub: "BUY 2 ETH",
     quantity: 2,
-    note: "6% of equity into a diversified book.",
+    note: "6,000 USDT = 6% of equity. Inside every limit.",
+    expect: "ALLOW",
   },
   {
     id: "reduced",
     label: "Oversized",
     sub: "BUY 5 ETH",
     quantity: 5,
-    note: "15% of equity, past the 10% soft limit.",
+    note: "15,000 = 15% of equity. Past the 10% soft limit, under the 25% hard one.",
+    expect: "ALLOW_REDUCED",
   },
   {
     id: "blocked",
     label: "Reckless",
     sub: "BUY 12 ETH",
     quantity: 12,
-    note: "36% of equity, past the 25% hard ceiling.",
+    note: "36,000 = 36% of equity. Past the 25% hard ceiling, and it drags concentration and correlation over too.",
+    expect: "BLOCK",
+  },
+  {
+    id: "levered",
+    label: "Levered 20x",
+    sub: "BUY 2 ETH",
+    quantity: 2,
+    leverage: 20,
+    note: "Same size, but at 20x. Liquidation sits ~4.5% away against a 15% minimum.",
+    expect: "BLOCK",
+  },
+  {
+    id: "strict",
+    label: "Stricter caller",
+    sub: "BUY 2 ETH",
+    quantity: 2,
+    thresholds: { totalExposure: { soft: 0.35, hard: 0.5 } },
+    note: "The same clean order, sent by a caller running a 0.35x book-wide cap instead of the default 1.5x.",
+    expect: "ALLOW_REDUCED",
   },
 ];
 
@@ -141,6 +170,8 @@ export function landingPage({ narrationEnabled, provider }) {
   h1.hero .fade { color: var(--fg-faint); }
   .lede { font-size: clamp(17px, 2.1vw, 20px); color: var(--fg-dim); max-width: 640px; line-height: 1.55; }
   .lede strong { color: var(--fg); font-weight: 500; }
+  .lede.why { font-size: 16px; margin-top: 22px; max-width: 660px;
+              padding-left: 17px; border-left: 2px solid var(--line); }
 
   .verdict-inline { display: inline-flex; gap: 7px; flex-wrap: wrap; margin: 0 2px; }
   .vchip { font-family: var(--mono); font-size: 0.86em; padding: 1px 8px; border-radius: 5px;
@@ -202,6 +233,9 @@ export function landingPage({ narrationEnabled, provider }) {
 
   .book { margin-top: 16px; padding-top: 15px; border-top: 1px solid var(--line-soft);
           font-family: var(--mono); font-size: 11.5px; color: var(--fg-faint); line-height: 1.85; }
+  .book.lim { margin-top: 13px; padding-top: 13px; }
+  .lim-h { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+           color: var(--fg-faint); margin-bottom: 6px; }
   .book .r { display: flex; justify-content: space-between; gap: 10px; }
   .book .r b { color: var(--fg-dim); font-weight: 500; }
 
@@ -232,9 +266,15 @@ export function landingPage({ narrationEnabled, provider }) {
 
   .narr { margin-top: 22px; padding: 16px 18px; border-radius: 10px;
           background: var(--bg-inset); border: 1px solid var(--line-soft); }
-  .narr-tag { font-family: var(--mono); font-size: 10px; letter-spacing: 0.11em; text-transform: uppercase;
-              color: var(--fg-faint); margin-bottom: 8px; }
-  .narr p { font-size: 14px; color: var(--fg-dim); line-height: 1.62; }
+  .narr-tag { font-family: var(--mono); font-size: 11px; color: var(--fg-dim);
+              cursor: pointer; list-style: none; user-select: none; }
+  .narr-tag::-webkit-details-marker { display: none; }
+  .narr-tag::before { content: "▸ "; color: var(--fg-faint); }
+  details[open] .narr-tag::before { content: "▾ "; }
+  .narr-tag span { color: var(--fg-faint); }
+  .narr-tag:hover { color: var(--fg); }
+  .narr p { font-size: 14px; color: var(--fg-dim); line-height: 1.62; margin-top: 12px;
+            padding-top: 12px; border-top: 1px solid var(--line-soft); }
   .fadein { animation: fade .32s ease both; }
   @keyframes fade { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
 
@@ -249,7 +289,15 @@ export function landingPage({ narrationEnabled, provider }) {
   .arrow { flex: 0 0 74px; display: flex; flex-direction: column; align-items: center;
            justify-content: center; gap: 5px; padding: 0 6px; }
   .arrow .lbl { font-family: var(--mono); font-size: 10px; color: var(--fg-faint); white-space: nowrap; }
+  .arrow .lbl.warn { color: var(--reduce); }
   .arrow .ln { width: 100%; height: 1px; background: linear-gradient(90deg, var(--line), #3a3a45, var(--line)); }
+  /* An unwired hop is drawn as one. The disclosure and the diagram must agree,
+     and the diagram is what people look at first. */
+  .arrow.unwired .ln { background: none;
+    border-top: 1px dashed rgba(251,191,36,0.55); height: 0; }
+  .node.pending { border-style: dashed; border-color: rgba(251,191,36,0.34); background: rgba(251,191,36,0.03); }
+  .node.pending .n-name { color: var(--reduce); }
+  .node .n-desc b { color: var(--reduce); font-weight: 500; }
   @media (max-width: 780px) { .arrow { flex: 1 1 100%; padding: 12px 0; } .arrow .ln { width: 1px; height: 18px; background: var(--line); } }
 
   /* --------------------------------------------------------------- rules */
@@ -261,6 +309,7 @@ export function landingPage({ narrationEnabled, provider }) {
   .rule .rn { font-family: var(--mono); font-size: 13px; font-weight: 500; color: var(--fg); }
   .rule .rm { font-family: var(--mono); font-size: 12px; color: var(--fg-faint); }
   .rule .rp { font-size: 14px; color: var(--fg-dim); line-height: 1.55; }
+  .footnote { margin-top: 22px; font-size: 13.5px; color: var(--fg-faint); line-height: 1.6; max-width: 780px; }
   @media (max-width: 860px) {
     .rule { grid-template-columns: 1fr; gap: 6px; }
     .rule .rm { order: 3; }
@@ -325,6 +374,12 @@ export function landingPage({ narrationEnabled, provider }) {
       <span class="verdict-inline"><span class="vchip a">ALLOW</span><span class="vchip r">ALLOW_REDUCED</span><span class="vchip b">BLOCK</span></span>
       — with every limit the action breaches, and why each one exists.</p>
 
+    <p class="lede why">Agent OS bounds what an agent may touch: you authorize a subaccount
+      with the scopes and limits you configure. But <strong>inside</strong> that boundary,
+      how much to buy and when is decided by a model running in whatever AI app you chose —
+      off-platform, and invisible to the exchange. Permissions cap the blast radius. Nothing
+      checks the judgment. That is the gap lyp fills.</p>
+
     <div class="cta">
       <a href="#demo" class="btn primary">Run a live check →</a>
       <a href="https://github.com/0xileri/lyp" class="btn">View source</a>
@@ -373,7 +428,9 @@ export function landingPage({ narrationEnabled, provider }) {
         <div class="panel-head"><span>Proposed action</span></div>
         <div class="panel-body">
           ${SCENARIOS.map(
-            (s) => `<button class="scn" data-q="${s.quantity}" data-id="${s.id}">
+            (s) => `<button class="scn" data-q="${s.quantity}" data-id="${s.id}"${
+              s.leverage ? ` data-lev="${s.leverage}"` : ""
+            }${s.thresholds ? ` data-th='${JSON.stringify(s.thresholds)}'` : ""}>
             <div class="scn-top"><span class="scn-label">${s.label}</span><span class="scn-q">${s.sub}</span></div>
             <div class="scn-note">${s.note}</div>
           </button>`,
@@ -382,6 +439,16 @@ export function landingPage({ narrationEnabled, provider }) {
             <div class="r"><span>equity</span><b>100,000 USDT</b></div>
             <div class="r"><span>exposure</span><b>30,000 USDT · 0.30x</b></div>
             <div class="r"><span>positions</span><b>BTC · SOL · ADA · DOGE</b></div>
+            <div class="r"><span>ETH mark</span><b>3,000 USDT</b></div>
+          </div>
+          <div class="book lim">
+            <div class="lim-h">limits in force</div>
+            <div class="r"><span>position_size</span><b>10% soft · 25% hard</b></div>
+            <div class="r"><span>total_exposure</span><b>1.5x soft · 3.0x hard</b></div>
+            <div class="r"><span>concentration</span><b>35% soft · 60% hard</b></div>
+            <div class="r"><span>correlation</span><b>55% soft · 80% hard</b></div>
+            <div class="r"><span>liquidation</span><b>15% minimum</b></div>
+            <div class="r"><span>activity_rate</span><b>40 / hour</b></div>
           </div>
         </div>
       </div>
@@ -414,10 +481,10 @@ export function landingPage({ narrationEnabled, provider }) {
         <div class="n-name">lyp</div>
         <div class="n-desc">Deterministic rules engine. Six limits, evaluated in code.</div>
       </div>
-      <div class="arrow"><span class="lbl">read-only</span><span class="ln"></span><span class="lbl">balances, marks</span></div>
-      <div class="node">
+      <div class="arrow unwired"><span class="lbl warn">not wired</span><span class="ln"></span><span class="lbl">balances, marks</span></div>
+      <div class="node pending">
         <div class="n-name">Binance Agent OS</div>
-        <div class="n-desc">Balances, positions, open orders, mark prices.</div>
+        <div class="n-desc">Balances, positions, open orders, mark prices — <b>not yet connected</b>. The endpoint answers <span class="mono">401</span> pending OAuth authorization; account state is fixture data until then.</div>
       </div>
     </div>
   </section>
@@ -436,6 +503,15 @@ export function landingPage({ narrationEnabled, provider }) {
       </div>`,
       ).join("\n      ")}
     </div>
+
+    <p class="footnote">Clusters are a hand-maintained map, not a rolling correlation matrix:
+      <span class="mono">majors</span> (BTC, ETH and their wrapped forms),
+      <span class="mono">l1s</span> (SOL, AVAX, ADA, DOT, NEAR, APT, SUI and peers), and
+      <span class="mono">memes</span> (DOGE, SHIB, PEPE, WIF, BONK). ETH sits in majors rather
+      than l1s because it trades as a beta anchor alongside BTC, not with the alt-L1 basket —
+      that is a judgement call, and it is written down rather than inferred. A matrix estimated
+      on recent data converges on "everything is correlated" precisely during the move you
+      needed the number for, and it makes verdicts non-reproducible.</p>
   </section>
 
   <section id="guarantees">
@@ -477,7 +553,7 @@ export function landingPage({ narrationEnabled, provider }) {
     </div>
 
 <pre class="snip"><span class="c"># every threshold is overridable per request, so a caller can run stricter limits</span>
-curl -X POST https://lyp-production.up.railway.app<span class="k">/check</span> \\
+curl -X POST https://lyp.up.railway.app<span class="k">/check</span> \\
   -H <span class="k">'content-type: application/json'</span> \\
   -d <span class="k">'{"action":{"symbol":"ETHUSDT","side":"BUY","quantity":5,"orderType":"MARKET"},
        "thresholds":{"positionSize":{"soft":0.05}}}'</span></pre>
@@ -520,8 +596,14 @@ curl -X POST https://lyp-production.up.railway.app<span class="k">/check</span> 
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          action: { symbol: "ETHUSDT", side: "BUY", quantity, orderType: "MARKET" },
-          actor: "landing-page",
+          action: {
+            symbol: "ETHUSDT", side: "BUY", quantity, orderType: "MARKET",
+            ...(btn.dataset.lev ? { leverage: Number(btn.dataset.lev) } : {}),
+          },
+          ...(btn.dataset.th ? { thresholds: JSON.parse(btn.dataset.th) } : {}),
+          // A distinct actor per scenario, so repeated clicking does not push
+          // the activity-rate counter into blocking an unrelated demo.
+          actor: "landing-" + btn.dataset.id,
         }),
       });
       const ms = Math.round(performance.now() - t0);
@@ -566,9 +648,13 @@ curl -X POST https://lyp-production.up.railway.app<span class="k">/check</span> 
       }
     }
 
+    // Collapsed by default. The violation list above is the answer; the
+    // paragraph restates it for a human. Making the prose the largest block on
+    // screen would quietly contradict the claim that no model reaches a verdict.
     if (r.narration) {
-      h += '<div class="narr"><div class="narr-tag">Narration · written after the verdict, ' +
-           'never part of it</div><p>' + esc(r.narration) + "</p></div>";
+      h += '<details class="narr"><summary class="narr-tag">Explain in plain language ' +
+           '<span>— model output, written after the verdict and never part of it</span>' +
+           "</summary><p>" + esc(r.narration) + "</p></details>";
     }
     h += "</div>";
     out.innerHTML = h;
