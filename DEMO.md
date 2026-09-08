@@ -15,14 +15,14 @@ Run these once. Do not discover a problem on camera.
 
 ```bash
 cd guardrail
-npm install
-npm test                    # expect: 92 pass, 0 fail
-npm run demo:approval       # no key needed, hits the live deployment
-npm run agent:dry           # no key needed, the full agent loop
+npm.cmd install
+npm.cmd test                # expect: 92 pass, 0 fail
+npm.cmd run demo:approval   # no key needed, hits the live deployment
+npm.cmd run agent:dry       # no key needed, the full agent loop
 
 # PowerShell:  $env:ANTHROPIC_API_KEY="sk-ant-..."
 # Git Bash:    export ANTHROPIC_API_KEY=sk-ant-...
-npm run agent "Open an ETH position worth about 15% of equity."
+npm.cmd run agent "Open an ETH position worth about 15% of equity."
 ```
 
 That last one is the only command that needs your API key, and it's the only one whose
@@ -61,7 +61,7 @@ You have two ways to film it. **Pick one before you start recording.**
 **Option A — deterministic (safer).** Same tool layer, same live guardrail, no model:
 
 ```bash
-npm run agent:dry
+npm.cmd run agent:dry
 ```
 
 Four proposals, four verdicts — ALLOW, ALLOW_REDUCED, and two different BLOCKs — in one
@@ -71,7 +71,7 @@ clean pass, every time. No API key, nothing to re-roll.
 own trades, so you may need takes:
 
 ```bash
-npm run agent "Open an ETH position worth about 15% of equity."
+npm.cmd run agent "Open an ETH position worth about 15% of equity."
 ```
 
 If you have time for takes, film B. If you're tight, film A and mention the model-driven
@@ -89,7 +89,7 @@ the entire point.
 Then the harder one:
 
 ```bash
-npm run agent "Go big on ETH — around 12 ETH, and use 20x leverage."
+npm.cmd run agent "Go big on ETH — around 12 ETH, and use 20x leverage."
 ```
 
 **Say:**
@@ -114,7 +114,7 @@ npm run agent "Go big on ETH — around 12 ETH, and use 20x leverage."
 **Then run:**
 
 ```bash
-npm test
+npm.cmd test
 ```
 
 **Say:**
@@ -128,7 +128,7 @@ npm test
 ## Shot 4 — the approval (2:00–2:50)
 
 ```bash
-npm run demo:approval
+npm.cmd run demo:approval
 ```
 
 Output:
@@ -162,7 +162,7 @@ Output:
 ## Shot 5 — Agent OS, honestly (2:50–3:15)
 
 ```bash
-curl -s https://lyp.up.railway.app/agentos
+curl.exe -s https://lyp.up.railway.app/agentos
 ```
 
 **Say:**

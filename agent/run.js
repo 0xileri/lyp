@@ -111,10 +111,15 @@ export async function runAgent({
 
 // --------------------------------------------------------------------- CLI
 
-const DIM = "[2m";
-const BOLD = "[1m";
-const RESET = "[0m";
-const COLOR = { ALLOW: "[32m", ALLOW_REDUCED: "[33m", BLOCK: "[31m" };
+// Colour only when writing to a real terminal. Piped or redirected output
+// stays plain, so escape codes never end up pasted into an issue or a doc.
+const TTY = process.stdout.isTTY && !process.env.NO_COLOR;
+const esc = (code) => (TTY ? code : "");
+
+const DIM = esc("[2m");
+const BOLD = esc("[1m");
+const RESET = esc("[0m");
+const COLOR = { ALLOW: esc("[32m"), ALLOW_REDUCED: esc("[33m"), BLOCK: esc("[31m") };
 
 function render(event) {
   switch (event.type) {

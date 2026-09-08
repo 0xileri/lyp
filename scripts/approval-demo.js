@@ -12,12 +12,17 @@
 
 const BASE = process.env.LYP_URL ?? "https://lyp.up.railway.app";
 
-const DIM = "[2m";
-const BOLD = "[1m";
-const GREEN = "[32m";
-const RED = "[31m";
-const YELLOW = "[33m";
-const RESET = "[0m";
+// Colour only when writing to a real terminal. Piped or redirected output
+// stays plain, so escape codes never end up pasted into an issue or a doc.
+const TTY = process.stdout.isTTY && !process.env.NO_COLOR;
+const esc = (code) => (TTY ? code : "");
+
+const DIM = esc("[2m");
+const BOLD = esc("[1m");
+const GREEN = esc("[32m");
+const RED = esc("[31m");
+const YELLOW = esc("[33m");
+const RESET = esc("[0m");
 
 async function post(path, body) {
   const res = await fetch(BASE + path, {
