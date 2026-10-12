@@ -3,6 +3,7 @@ import { ActivityLog } from "./activity.js";
 import { evaluate } from "./engine/rules.js";
 import { clusterOf } from "./engine/clusters.js";
 import { assertValidResponse } from "./schema.js";
+import { narrationHealth } from "./narration.js";
 import { mintApproval } from "./approval.js";
 
 /**
@@ -128,10 +129,22 @@ export class Guardrail {
     try {
       // Frozen so a narrator implementation cannot mutate the verdict it is
       // describing, deliberately or otherwise.
-      return await this.narrator.narrate(Object.freeze(structuredClone(response)), Object.freeze({ ...action }));
-    } catch {
+      const text = await this.narrator.narrate(
+        Object.freeze(structuredClone(response)),
+        Object.freeze({ ...action }),
+      );
+      narrationHealth.recordSuccess();
+      return text;
+    } catch (err) {
       // Narration is cosmetic. A model outage must not change what the
       // guardrail decides, or whether it answers at all.
+      //
+      // But it must not be invisible either. Swallowing this silently once hid
+      // a month-long outage: every verdict returned narration: null while
+      // /health still reported "enabled". The caller still sees nothing; the
+      // operator now sees both a log line and a state change on /health.
+      narrationHealth.recordFailure(err);
+      console.warn(`narration failed (verdict unaffected): ${narrationHealth.status().lastError}`);
       return null;
     }
   }

@@ -86,6 +86,84 @@ export class Narrator {
   }
 }
 
+/** Strip anything key-shaped before a message reaches a log or a response. */
+const redact = (s) =>
+  String(s ?? "")
+    .replace(/sk-[A-Za-z0-9_-]{8,}/g, "sk-***")
+    .slice(0, 200);
+
+/**
+ * Whether narration is actually working, as opposed to merely configured.
+ *
+ * This exists because of a real failure that took a month to notice. The
+ * Anthropic key stopped being accepted, every verdict came back with
+ * `narration: null`, and nothing anywhere said so: the catch in Guardrail
+ * swallowed the error without a log line, and /health reported "enabled"
+ * because the environment variable was still set. The outage was invisible
+ * until someone inferred it from response latency.
+ *
+ * Silence is the right behaviour for the caller — a model outage must not
+ * change a verdict or surface an error to an agent. It is the wrong behaviour
+ * for an operator. So the failure is swallowed as before, and recorded here.
+ */
+class NarrationHealth {
+  #attempts = 0;
+  #successes = 0;
+  #consecutiveFailures = 0;
+  #lastSuccessAt = null;
+  #lastFailureAt = null;
+  #lastError = null;
+
+  recordSuccess(now = Date.now()) {
+    this.#attempts += 1;
+    this.#successes += 1;
+    this.#consecutiveFailures = 0;
+    this.#lastSuccessAt = now;
+    this.#lastError = null;
+  }
+
+  recordFailure(err, now = Date.now()) {
+    this.#attempts += 1;
+    this.#consecutiveFailures += 1;
+    this.#lastFailureAt = now;
+    this.#lastError = redact(err?.message ?? err);
+  }
+
+  /**
+   * "disabled" when no key is configured, "failing" when the last attempt
+   * failed, "enabled" otherwise. The distinction between enabled and failing is
+   * the whole point: the previous version could only report the former.
+   */
+  get state() {
+    if (!NARRATION.enabled) return "disabled";
+    return this.#consecutiveFailures > 0 ? "failing" : "enabled";
+  }
+
+  status() {
+    return {
+      state: this.state,
+      model: NARRATION.enabled ? NARRATION.model : null,
+      attempts: this.#attempts,
+      successes: this.#successes,
+      consecutiveFailures: this.#consecutiveFailures,
+      lastSuccessAt: this.#lastSuccessAt ? new Date(this.#lastSuccessAt).toISOString() : null,
+      lastFailureAt: this.#lastFailureAt ? new Date(this.#lastFailureAt).toISOString() : null,
+      lastError: this.#lastError,
+    };
+  }
+
+  reset() {
+    this.#attempts = 0;
+    this.#successes = 0;
+    this.#consecutiveFailures = 0;
+    this.#lastSuccessAt = null;
+    this.#lastFailureAt = null;
+    this.#lastError = null;
+  }
+}
+
+export const narrationHealth = new NarrationHealth();
+
 /** A Narrator when one is configured, otherwise null. Never throws. */
 export function createNarrator() {
   if (!NARRATION.enabled) return null;

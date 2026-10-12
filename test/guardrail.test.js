@@ -5,6 +5,7 @@ import { Guardrail } from "../src/guardrail.js";
 import { ActivityLog } from "../src/activity.js";
 import { AccountStateService, FixtureProvider } from "../src/agentos/account.js";
 import { VerdictResponseSchema } from "../src/schema.js";
+import { narrationHealth } from "../src/narration.js";
 import { DIVERSIFIED, asOf } from "../fixtures/accounts.js";
 
 /**
@@ -216,4 +217,68 @@ test("account_risk reports exposure and clusters without reaching a verdict", as
   assert.ok(Math.abs(r.clusterExposure.l1s.notional - 15_000) < 1e-9, "SOL 9,000 + ADA 6,000");
   assert.ok(Math.abs(r.clusterExposure.majors.notional - 9_000) < 1e-9);
   assert.equal(r.verdict, undefined, "account_risk judges nothing");
+});
+
+test("a narration failure is recorded, not merely swallowed", async () => {
+  // Regression test for a month-long invisible outage: the Anthropic key stopped
+  // being accepted, every verdict returned narration: null, and nothing said so.
+  // The caller must still see nothing. The operator must see something.
+  narrationHealth.reset();
+
+  const failing = { narrate: async () => { throw new Error("401 invalid x-api-key sk-ant-abcdefghijkl"); } };
+  const warnings = [];
+  const realWarn = console.warn;
+  console.warn = (msg) => warnings.push(msg);
+
+  let result;
+  try {
+    result = await buildGuardrail({ narrator: failing }).check({ action: cleanAction }, NOW);
+  } finally {
+    console.warn = realWarn;
+  }
+
+  // The caller is unaffected.
+  assert.equal(result.verdict, "ALLOW");
+  assert.equal(result.narration, null);
+
+  // The operator is not left guessing.
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0], /narration failed \(verdict unaffected\)/);
+
+  const status = narrationHealth.status();
+  assert.equal(status.consecutiveFailures, 1);
+  assert.equal(status.successes, 0);
+  assert.ok(status.lastFailureAt);
+
+  // Key material never reaches a log line or a response body.
+  assert.doesNotMatch(warnings[0], /sk-ant-abcdefghijkl/);
+  assert.doesNotMatch(status.lastError, /sk-ant-abcdefghijkl/);
+  assert.match(status.lastError, /sk-\*\*\*/);
+});
+
+test("a recovered narrator clears the failing state", async () => {
+  narrationHealth.reset();
+  const flaky = { calls: 0, narrate: async function () {
+    this.calls += 1;
+    if (this.calls === 1) throw new Error("529 overloaded");
+    return "A plain-language explanation.";
+  } };
+
+  const realWarn = console.warn;
+  console.warn = () => {};
+  try {
+    await buildGuardrail({ narrator: flaky }).check({ action: cleanAction }, NOW);
+    assert.equal(narrationHealth.status().consecutiveFailures, 1);
+
+    const second = await buildGuardrail({ narrator: flaky }).check({ action: cleanAction }, NOW);
+    assert.equal(second.narration, "A plain-language explanation.");
+  } finally {
+    console.warn = realWarn;
+  }
+
+  // One success is enough to stop reporting a problem that no longer exists.
+  const status = narrationHealth.status();
+  assert.equal(status.consecutiveFailures, 0);
+  assert.equal(status.successes, 1);
+  assert.ok(status.lastSuccessAt);
 });

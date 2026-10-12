@@ -3,7 +3,7 @@ import { SERVER, NARRATION } from "./config.js";
 import { CheckRequestSchema, VerifyRequestSchema } from "./schema.js";
 import { Guardrail } from "./guardrail.js";
 import { AccountStateService, AgentOsProvider, FixtureProvider } from "./agentos/account.js";
-import { createNarrator } from "./narration.js";
+import { createNarrator, narrationHealth } from "./narration.js";
 import { mcpRequestHandler } from "./mcp/server.js";
 import { landingPage } from "./landing.js";
 import { AgentOsClient } from "./agentos/client.js";
@@ -34,7 +34,11 @@ export function createApp({ guardrail, provider = SERVER.provider } = {}) {
     res.json({
       status: "ok",
       provider,
-      narration: NARRATION.enabled ? "enabled" : "disabled",
+      // "failing" rather than "enabled" when the model is configured but
+      // not answering. The previous version could only report whether the key
+      // was set, which is not the same question.
+      narration: narrationHealth.state,
+      narrationDetail: narrationHealth.status(),
       // Stated explicitly because it is the property that matters most about
       // this service, and it should be checkable without reading the source.
       exchangeScope: "read-only",
