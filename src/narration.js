@@ -30,9 +30,16 @@ const SYSTEM_PROMPT = [
 ].join("\n");
 
 export class Narrator {
-  constructor({ apiKey = process.env.ANTHROPIC_API_KEY, model = NARRATION.model, timeoutMs = NARRATION.timeoutMs } = {}) {
+  constructor({
+    apiKey = process.env.NARRATION_API_KEY || process.env.ANTHROPIC_API_KEY,
+    baseURL = NARRATION.baseUrl,
+    model = NARRATION.model,
+    timeoutMs = NARRATION.timeoutMs,
+  } = {}) {
     if (!apiKey) throw new Error("Narrator requires an API key; construct it only when one is configured");
-    this.client = new Anthropic({ apiKey });
+    // baseURL is omitted rather than passed as null so the SDK keeps its own
+    // default when no gateway is configured.
+    this.client = new Anthropic(baseURL ? { apiKey, baseURL } : { apiKey });
     this.model = model;
     this.timeoutMs = timeoutMs;
   }
@@ -99,18 +106,27 @@ export class Narrator {
  * part is included, so this is safe to serve on an open endpoint.
  */
 function describeKey(raw) {
-  if (!raw) return { present: false };
+  if (!raw) return { present: false, variable: null };
   const trimmed = raw.trim();
-  return {
+
+  const shape = {
     present: true,
+    variable: NARRATION.keyVariable,
     length: raw.length,
-    startsWithExpectedPrefix: trimmed.startsWith("sk-ant-"),
     hasSurroundingWhitespace: raw !== trimmed,
     hasSurroundingQuotes: /^["'].*["']$/.test(trimmed),
-    // A current Anthropic key is ~108 chars. Far from that usually means a
-    // truncated paste or a value from somewhere else.
-    lengthLooksPlausible: trimmed.length >= 90 && trimmed.length <= 200,
   };
+
+  // The prefix and length expectations are Anthropic's. A gateway issues keys
+  // in its own format, so asserting sk-ant- against one would report a working
+  // key as broken — which is worse than reporting nothing.
+  if (!NARRATION.baseUrl) {
+    shape.startsWithExpectedPrefix = trimmed.startsWith("sk-ant-");
+    shape.lengthLooksPlausible = trimmed.length >= 90 && trimmed.length <= 200;
+  } else {
+    shape.note = `shape not checked: keys for ${NARRATION.provider} are not Anthropic-format`;
+  }
+  return shape;
 }
 
 /** Strip anything key-shaped before a message reaches a log or a response. */
@@ -170,7 +186,8 @@ class NarrationHealth {
     return {
       state: this.state,
       model: NARRATION.enabled ? NARRATION.model : null,
-      key: describeKey(process.env.ANTHROPIC_API_KEY),
+      provider: NARRATION.enabled ? NARRATION.provider : null,
+      key: describeKey(process.env.NARRATION_API_KEY || process.env.ANTHROPIC_API_KEY),
       attempts: this.#attempts,
       successes: this.#successes,
       consecutiveFailures: this.#consecutiveFailures,

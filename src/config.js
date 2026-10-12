@@ -133,8 +133,45 @@ export const SERVER = {
   provider: process.env.GUARDRAIL_PROVIDER ?? "fixture",
 };
 
+/**
+ * Narration provider.
+ *
+ * Anthropic-shaped by default and talking to Anthropic directly, but any
+ * gateway that speaks the same wire format works by setting a base URL —
+ * Orbio, for instance, at https://api.orbio.so/api. Anthropic-shaped clients
+ * append /v1/messages themselves, which is why that base ends at /api rather
+ * than /api/v1.
+ *
+ * A gateway usually wants its own model identifiers too (Orbio takes
+ * OpenRouter ids, e.g. anthropic/claude-sonnet-4.5), so NARRATION_MODEL has to
+ * be set alongside the base URL rather than inherited.
+ *
+ * NARRATION_API_KEY is preferred over ANTHROPIC_API_KEY, because a key for a
+ * gateway sitting in a variable named after Anthropic is how the wrong
+ * credential ends up in the wrong place. Both are read, in that order.
+ */
+const narrationKeySet = Boolean(process.env.NARRATION_API_KEY || process.env.ANTHROPIC_API_KEY);
+const narrationBaseUrl = process.env.NARRATION_BASE_URL || null;
+
 export const NARRATION = {
-  enabled: Boolean(process.env.ANTHROPIC_API_KEY),
+  enabled: narrationKeySet,
+  baseUrl: narrationBaseUrl,
+  /** Where narration actually goes, for the health endpoint to report. */
+  provider: narrationBaseUrl ? hostOf(narrationBaseUrl) : "api.anthropic.com",
+  /** Which variable supplied the key, so a misplaced one is visible. */
+  keyVariable: process.env.NARRATION_API_KEY
+    ? "NARRATION_API_KEY"
+    : process.env.ANTHROPIC_API_KEY
+      ? "ANTHROPIC_API_KEY"
+      : null,
   model: process.env.NARRATION_MODEL ?? "claude-sonnet-5",
   timeoutMs: Number(process.env.NARRATION_TIMEOUT_MS ?? 4000),
 };
+
+function hostOf(url) {
+  try {
+    return new URL(url).host;
+  } catch {
+    return "invalid-base-url";
+  }
+}

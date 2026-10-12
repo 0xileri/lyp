@@ -282,3 +282,22 @@ test("a recovered narrator clears the failing state", async () => {
   assert.equal(status.successes, 1);
   assert.ok(status.lastSuccessAt);
 });
+
+test("narration can be pointed at a gateway instead of Anthropic", async () => {
+  // A gateway that speaks the Anthropic wire format (Orbio, for one) needs a
+  // base URL and its own model ids. The key-shape check must not assert
+  // Anthropic's sk-ant- prefix against a gateway key, or a working key would be
+  // reported as broken.
+  const { Narrator } = await import("../src/narration.js");
+
+  const direct = new Narrator({ apiKey: "sk-ant-test", model: "claude-sonnet-5" });
+  assert.match(String(direct.client.baseURL), /anthropic\.com/);
+
+  const viaGateway = new Narrator({
+    apiKey: "gateway-key",
+    baseURL: "https://api.orbio.so/api",
+    model: "anthropic/claude-sonnet-4.5",
+  });
+  assert.equal(viaGateway.client.baseURL, "https://api.orbio.so/api");
+  assert.equal(viaGateway.model, "anthropic/claude-sonnet-4.5");
+});
