@@ -86,6 +86,33 @@ export class Narrator {
   }
 }
 
+/**
+ * Describe the shape of a configured key without revealing it.
+ *
+ * An `invalid x-api-key` 401 has a small number of causes and almost all of
+ * them are visible in the shape of the value rather than its content: quotes
+ * captured by a paste, a trailing newline, a truncated copy, or a key from
+ * another provider entirely. Reporting length and a handful of flags
+ * distinguishes those in one request instead of a redeploy per guess.
+ *
+ * Only the public prefix, the length, and three booleans. None of the random
+ * part is included, so this is safe to serve on an open endpoint.
+ */
+function describeKey(raw) {
+  if (!raw) return { present: false };
+  const trimmed = raw.trim();
+  return {
+    present: true,
+    length: raw.length,
+    startsWithExpectedPrefix: trimmed.startsWith("sk-ant-"),
+    hasSurroundingWhitespace: raw !== trimmed,
+    hasSurroundingQuotes: /^["'].*["']$/.test(trimmed),
+    // A current Anthropic key is ~108 chars. Far from that usually means a
+    // truncated paste or a value from somewhere else.
+    lengthLooksPlausible: trimmed.length >= 90 && trimmed.length <= 200,
+  };
+}
+
 /** Strip anything key-shaped before a message reaches a log or a response. */
 const redact = (s) =>
   String(s ?? "")
@@ -143,6 +170,7 @@ class NarrationHealth {
     return {
       state: this.state,
       model: NARRATION.enabled ? NARRATION.model : null,
+      key: describeKey(process.env.ANTHROPIC_API_KEY),
       attempts: this.#attempts,
       successes: this.#successes,
       consecutiveFailures: this.#consecutiveFailures,
